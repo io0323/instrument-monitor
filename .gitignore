@@ -1,0 +1,50 @@
+# Gradle
+.gradle/
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android Studio / IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+local.properties
+
+# Android
+/androidApp/release/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Kotlin/Native
+/shared/.cinterop/
+xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+*.xccheckout
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+
+# iOS
+iosApp/Pods/
+iosApp/.build/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# SQLDelight generated
+/shared/src/commonMain/sqldelight/
+
+# Environment
+*.env
+local.properties
