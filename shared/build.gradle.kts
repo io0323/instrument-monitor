@@ -57,6 +57,10 @@ android {
     compileSdk  = 35
     defaultConfig {
         minSdk = 26
+        buildConfigField("Boolean", "USE_MOCK", "true")
+    }
+    buildFeatures {
+        buildConfig = true
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

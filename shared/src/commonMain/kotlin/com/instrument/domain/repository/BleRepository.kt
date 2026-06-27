@@ -4,15 +4,17 @@ import com.instrument.domain.model.GasDevice
 import com.instrument.domain.model.SensorReading
 import kotlinx.coroutines.flow.Flow
 
-// BLEデータソースの抽象化インターフェース
-// Phase 2 で実装: AndroidBleRepository / MockBleRepository
 interface BleRepository {
-    // 周辺BLEデバイスをスキャンして Flow で返す
     fun scanDevices(): Flow<List<GasDevice>>
-
-    // 指定デバイスに接続し、センサー値を Flow で返す
-    fun connectAndObserve(device: GasDevice): Flow<Result<SensorReading>>
-
-    // 接続を切断する
+    fun connect(deviceId: String): Flow<BleConnectionState>
+    fun observeSensorData(): Flow<SensorReading>
     suspend fun disconnect()
+}
+
+sealed class BleConnectionState {
+    object Scanning     : BleConnectionState()
+    object Connecting   : BleConnectionState()
+    object Connected    : BleConnectionState()
+    object Disconnected : BleConnectionState()
+    data class Error(val message: String) : BleConnectionState()
 }
