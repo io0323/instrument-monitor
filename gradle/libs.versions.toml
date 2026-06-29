@@ -13,6 +13,7 @@ lifecycle               = "2.8.3"
 vico                    = "2.0.0-beta.2"
 osmdroid                = "6.1.20"
 accompanist-permissions = "0.36.0"
+shimmer                 = "1.3.0"
 androidx-activity       = "1.9.3"
 navigation              = "2.8.4"
 
@@ -48,6 +49,7 @@ osmdroid                = { module = "org.osmdroid:osmdroid-android",           
 vico-compose            = { module = "com.patrykandpatrick.vico:compose-m3",                     version.ref = "vico" }
 accompanist-permissions = { module = "com.google.accompanist:accompanist-permissions",           version.ref = "accompanist-permissions" }
 activity-compose        = { module = "androidx.activity:activity-compose",                       version.ref = "androidx-activity" }
+shimmer                 = { module = "com.valentinilk.shimmer:compose-shimmer",                   version.ref = "shimmer" }
 navigation-compose      = { module = "androidx.navigation:navigation-compose",                   version.ref = "navigation" }
 
 [plugins]

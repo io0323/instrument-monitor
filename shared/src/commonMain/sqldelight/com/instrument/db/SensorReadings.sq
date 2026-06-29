@@ -1,0 +1,25 @@
+CREATE TABLE sensor_readings (
+    id          INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    ppm         REAL    NOT NULL,
+    temperature REAL    NOT NULL,
+    humidity    REAL    NOT NULL,
+    lat         REAL    NOT NULL,
+    lng         REAL    NOT NULL,
+    gas_level   TEXT    NOT NULL,
+    timestamp   INTEGER NOT NULL
+);
+
+insert:
+INSERT INTO sensor_readings (ppm, temperature, humidity, lat, lng, gas_level, timestamp)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+selectAll:
+SELECT * FROM sensor_readings ORDER BY timestamp DESC;
+
+selectDangerous:
+SELECT * FROM sensor_readings
+WHERE gas_level IN ('DANGER', 'CRITICAL')
+ORDER BY timestamp DESC;
+
+deleteOlderThan:
+DELETE FROM sensor_readings WHERE timestamp < ?;

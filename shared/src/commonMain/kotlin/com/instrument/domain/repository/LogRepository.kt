@@ -3,15 +3,11 @@ package com.instrument.domain.repository
 import com.instrument.domain.model.GeoTaggedReading
 import kotlinx.coroutines.flow.Flow
 
-// 計測ログの永続化インターフェース
-// Phase 7 で実装: SQLDelightLogRepository
+// 計測ログの永続化インターフェース（SQLDelight で実装）
 interface LogRepository {
-    // 全ログを Flow で返す
-    fun observeAll(): Flow<List<GeoTaggedReading>>
-
-    // ログを保存する
-    suspend fun save(reading: GeoTaggedReading)
-
-    // 全ログを削除する
-    suspend fun clearAll()
+    suspend fun save(reading: GeoTaggedReading): Result<Long>
+    fun getAllReadings(): Flow<List<GeoTaggedReading>>
+    fun getDangerousReadings(): Flow<List<GeoTaggedReading>>
+    suspend fun deleteOlderThan(epochMs: Long): Result<Unit>
+    suspend fun exportCsv(): Result<String>
 }

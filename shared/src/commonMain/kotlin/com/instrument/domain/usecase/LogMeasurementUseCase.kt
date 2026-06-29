@@ -6,13 +6,13 @@ import com.instrument.domain.model.GeoTaggedReading
 import com.instrument.domain.repository.GpsRepository
 import com.instrument.domain.repository.LogRepository
 
+// DANGER以上のガス状態を GPS 座標付きでロギングするユースケース
 class LogMeasurementUseCase(
     private val logRepo: LogRepository,
-    private val gpsRepo: GpsRepository
+    private val gpsRepo: GpsRepository,
 ) {
     suspend operator fun invoke(status: GasStatus, manualSave: Boolean = false): Result<Unit> {
-        val shouldSave = status.level >= GasLevel.DANGER || manualSave
-        if (!shouldSave) return Result.success(Unit)
+        if (status.level < GasLevel.DANGER && !manualSave) return Result.success(Unit)
         return runCatching {
             val location = runCatching {
                 var loc: Pair<Double, Double>? = null
@@ -24,9 +24,10 @@ class LogMeasurementUseCase(
                     reading = status.reading,
                     lat     = location.first,
                     lng     = location.second,
-                    level   = status.level
+                    level   = status.level,
                 )
             )
+            Unit
         }
     }
 }
