@@ -42,8 +42,8 @@ iosApp/.build/
 .DS_Store
 **/.DS_Store
 
-# SQLDelight generated
-/shared/src/commonMain/sqldelight/
+# SQLDelight generated output
+/shared/build/generated/sqldelight/
 
 # Environment
 *.env

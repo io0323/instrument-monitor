@@ -45,6 +45,7 @@ kotlin {
             implementation(libs.osmdroid)
             implementation(libs.vico.compose)
             implementation(libs.accompanist.permissions)
+            implementation("com.google.android.gms:play-services-location:21.3.0")
         }
         iosMain.dependencies {
             implementation(libs.sqldelight.native)
