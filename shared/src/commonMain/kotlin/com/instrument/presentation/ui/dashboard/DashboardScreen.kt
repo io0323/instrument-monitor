@@ -1,4 +1,4 @@
-package com.instrument.android.ui.dashboard
+package com.instrument.presentation.ui.dashboard
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -17,11 +17,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.instrument.android.ui.theme.GasLevelColors
 import com.instrument.domain.model.*
 import com.instrument.domain.repository.BleConnectionState
+import com.instrument.presentation.ui.theme.GasLevelColors
 import com.instrument.presentation.viewmodel.DashboardViewModel
-import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.*
 
 @Composable
@@ -150,7 +150,6 @@ fun GasGauge(ppm: Float, level: GasLevel, modifier: Modifier = Modifier) {
 
             fun ppmToSweep(ppmVal: Float) = (ppmVal / maxPpm) * sweepTotal
 
-            // 背景アーク（レベル帯）
             val bands = listOf(
                 GasLevel.SAFE     to (0f to 50f),
                 GasLevel.WARNING  to (50f to 200f),
@@ -170,7 +169,6 @@ fun GasGauge(ppm: Float, level: GasLevel, modifier: Modifier = Modifier) {
                 )
             }
 
-            // アクティブアーク
             drawArc(
                 color = (GasLevelColors[level] ?: Color.Green).copy(
                     alpha = if (level == GasLevel.CRITICAL) blinkAlpha else 1f
@@ -182,7 +180,6 @@ fun GasGauge(ppm: Float, level: GasLevel, modifier: Modifier = Modifier) {
                 style = Stroke(width = 24.dp.toPx(), cap = StrokeCap.Butt),
             )
 
-            // 針
             val angleRad = Math.toRadians((startAngle + animatedAngle).toDouble())
             val needleLen = radius * 0.75f
             drawLine(

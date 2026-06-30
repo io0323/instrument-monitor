@@ -1,12 +1,10 @@
-package com.instrument.android.ui.devicelist
+package com.instrument.presentation.ui.devicelist
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,8 +15,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.instrument.domain.model.GasDevice
 import com.instrument.domain.repository.BleConnectionState
 import com.instrument.presentation.viewmodel.DeviceListViewModel
-import com.valentinilk.shimmer.shimmer
-import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,9 +36,7 @@ fun DeviceListScreen(onNavigateBack: () -> Unit) {
             TopAppBar(
                 title = { Text(if (isScanning) "スキャン中..." else "デバイス一覧") },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.stopScan(); onNavigateBack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
-                    }
+                    TextButton(onClick = { viewModel.stopScan(); onNavigateBack() }) { Text("←") }
                 },
                 actions = {
                     if (isScanning) {
@@ -61,7 +56,7 @@ fun DeviceListScreen(onNavigateBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (isScanning && devices.isEmpty()) {
-                items(3) { ShimmerItem() }
+                items(3) { LoadingItem() }
             } else {
                 items(devices) { device ->
                     DeviceItem(device = device, onClick = { viewModel.selectDevice(device) })
@@ -72,45 +67,24 @@ fun DeviceListScreen(onNavigateBack: () -> Unit) {
 }
 
 @Composable
-fun ShimmerItem() {
-    Card(modifier = Modifier.fillMaxWidth().shimmer()) {
+private fun LoadingItem() {
+    Card(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.5f)
-                        .height(14.dp)
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f))
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.7f)
-                        .height(12.dp)
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f))
-                )
-            }
-            RssiBar(rssi = -90)
+            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+            Spacer(modifier = Modifier.width(12.dp))
+            Text("スキャン中...", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
 
 @Composable
 fun DeviceItem(device: GasDevice, onClick: () -> Unit) {
-    Card(modifier = Modifier
-        .fillMaxWidth()
-        .clickable(onClick = onClick)) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
