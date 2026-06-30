@@ -39,7 +39,6 @@ dependencies {
     implementation(libs.koin.android)
     implementation(libs.coroutines.android)
     implementation(libs.activity.compose)
-    implementation(libs.navigation.compose)
     implementation(libs.shimmer)
     implementation("com.google.android.gms:play-services-location:21.3.0")
     // Compose + Material3 (androidApp UI ファイルに必要)
@@ -54,4 +53,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("io.insert-koin:koin-androidx-compose:3.6.0-Beta5")
     implementation(libs.osmdroid)
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.7.5")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:1.7.5")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
