@@ -12,6 +12,9 @@ build/
 local.properties
 
 # Android
+*.jks
+*.keystore
+google-services.json
 /androidApp/release/
 *.apk
 *.aab
