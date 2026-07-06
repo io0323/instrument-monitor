@@ -1,5 +1,6 @@
 package com.instrument.presentation.ui.dashboard
 
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -128,18 +129,50 @@ fun ConnectionBar(deviceName: String?, state: BleConnectionState, onScanClick: (
 
 @Composable
 fun GasGauge(ppm: Float, level: GasLevel, modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "blink")
+    val isCritical = level == GasLevel.CRITICAL
+    val levelColor = GasLevelColors[level] ?: Color.Green
+    val criticalColor = GasLevelColors[GasLevel.CRITICAL] ?: Color.Red
+
+    val infiniteTransition = rememberInfiniteTransition(label = "gauge_anim")
+
+    // アーク点滅: CRITICAL時は暗→明を繰り返す (それ以外は常時 1f)
     val blinkAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.85f, targetValue = 1.0f, label = "blink",
-        animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse),
+        initialValue = if (isCritical) 0.15f else 1f,
+        targetValue = 1f,
+        label = "arc_blink",
+        animationSpec = infiniteRepeatable(tween(500, easing = LinearEasing), RepeatMode.Reverse),
     )
+
+    // ppm/レベルテキスト色: CRITICAL時はレベルカラー ↔ 白で点滅
+    val labelColor by infiniteTransition.animateColor(
+        initialValue = levelColor,
+        targetValue = if (isCritical) Color.White else levelColor,
+        label = "label_color",
+        animationSpec = infiniteRepeatable(tween(500, easing = LinearEasing), RepeatMode.Reverse),
+    )
+
+    // 背景グロー透明度: CRITICAL時のみ赤いパルスを表示
+    val bgGlowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = if (isCritical) 0.18f else 0f,
+        label = "bg_glow",
+        animationSpec = infiniteRepeatable(tween(500, easing = LinearEasing), RepeatMode.Reverse),
+    )
+
     val animatedAngle by animateFloatAsState(
         targetValue = ppmToAngle(ppm.coerceIn(0f, 500f)),
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
         label = "needle",
     )
 
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+    Box(
+        modifier = modifier
+            .background(
+                color = criticalColor.copy(alpha = bgGlowAlpha),
+                shape = MaterialTheme.shapes.large,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val cx = size.width / 2
             val cy = size.height * 0.65f
@@ -170,9 +203,7 @@ fun GasGauge(ppm: Float, level: GasLevel, modifier: Modifier = Modifier) {
             }
 
             drawArc(
-                color = (GasLevelColors[level] ?: Color.Green).copy(
-                    alpha = if (level == GasLevel.CRITICAL) blinkAlpha else 1f
-                ),
+                color = levelColor.copy(alpha = if (isCritical) blinkAlpha else 1f),
                 startAngle = startAngle, sweepAngle = ppmToSweep(ppm.coerceIn(0f, maxPpm)),
                 useCenter = false,
                 topLeft = Offset(cx - radius, cy - radius),
@@ -202,10 +233,11 @@ fun GasGauge(ppm: Float, level: GasLevel, modifier: Modifier = Modifier) {
                 text = ppm.toInt().toString(),
                 style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Bold,
+                color = labelColor,
             )
             Text(
                 text = "ppm  ${level.name}",
-                color = GasLevelColors[level] ?: Color.White,
+                color = labelColor,
                 fontWeight = FontWeight.SemiBold,
             )
         }
