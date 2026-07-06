@@ -9,7 +9,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.instrument.domain.model.GasDevice
@@ -100,25 +105,71 @@ fun DeviceItem(device: GasDevice, onClick: () -> Unit) {
     }
 }
 
+/**
+ * WiFi電波アイコン風のRSSI強度インジケーター。
+ * 3段のアークとドットで信号強度を表示し、強度に応じて色が変化する。
+ *
+ *  強度区分:
+ *   rssi > -65 dBm → 強 (3アーク / 緑)
+ *   rssi > -75 dBm → 中 (2アーク / 黄)
+ *   rssi > -85 dBm → 弱 (1アーク / オレンジ)
+ *   rssi ≤ -85 dBm → 圏外 (0アーク / 赤)
+ */
 @Composable
 fun RssiBar(rssi: Int) {
-    val bars = when {
-        rssi > -65 -> 4
-        rssi > -75 -> 3
-        rssi > -85 -> 2
-        else       -> 1
+    val activeCount = when {
+        rssi > -65 -> 3
+        rssi > -75 -> 2
+        rssi > -85 -> 1
+        else       -> 0
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
-        (1..4).forEach { i ->
-            Box(
-                modifier = Modifier
-                    .width(5.dp)
-                    .height((4 + i * 5).dp)
-                    .background(
-                        color = if (i <= bars) Color(0xFF4CAF50) else Color(0xFF424242),
-                        shape = MaterialTheme.shapes.extraSmall,
-                    )
+    val activeColor = when (activeCount) {
+        3    -> Color(0xFF4CAF50) // 強: 緑
+        2    -> Color(0xFFFFB300) // 中: 琥珀
+        1    -> Color(0xFFFF7043) // 弱: オレンジ
+        else -> Color(0xFFF44336) // 圏外: 赤
+    }
+    val inactiveColor = Color(0xFF616161)
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Canvas(modifier = Modifier.size(width = 36.dp, height = 28.dp)) {
+            val cx   = size.width / 2f
+            val dotY = size.height * 0.88f
+            val dotRadius  = size.width * 0.07f
+            val strokeW    = size.width * 0.10f
+
+            // ドット (中心点)
+            val dotColor = if (activeCount > 0) activeColor else inactiveColor
+            drawCircle(color = dotColor, radius = dotRadius, center = Offset(cx, dotY))
+
+            // 3段のWiFiアーク (下から上に大きくなる)
+            val arcRadii = listOf(
+                size.width * 0.22f to 1,
+                size.width * 0.38f to 2,
+                size.width * 0.54f to 3,
             )
+            arcRadii.forEach { (radius, level) ->
+                val arcColor = if (level <= activeCount) activeColor else inactiveColor
+                drawArc(
+                    color      = arcColor,
+                    startAngle = 210f,
+                    sweepAngle = 120f,
+                    useCenter  = false,
+                    topLeft    = Offset(cx - radius, dotY - radius),
+                    size       = Size(radius * 2f, radius * 2f),
+                    style      = Stroke(width = strokeW, cap = StrokeCap.Round),
+                )
+            }
         }
+
+        // dBm 数値ラベル
+        Text(
+            text  = "${rssi} dBm",
+            style = MaterialTheme.typography.labelSmall,
+            color = activeColor,
+        )
     }
 }
