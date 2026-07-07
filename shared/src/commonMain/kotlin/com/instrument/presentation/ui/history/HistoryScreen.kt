@@ -1,9 +1,11 @@
 package com.instrument.presentation.ui.history
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,6 +16,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.instrument.domain.model.GeoTaggedReading
 import com.instrument.presentation.components.InstrumentMap
 import com.instrument.presentation.ui.theme.GasLevelColors
+import com.instrument.presentation.viewmodel.DateFilter
 import com.instrument.presentation.viewmodel.HistoryViewModel
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -24,7 +27,8 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun HistoryScreen(onNavigateBack: () -> Unit) {
     val viewModel: HistoryViewModel = koinViewModel()
-    val readings by viewModel.readings.collectAsStateWithLifecycle()
+    val readings    by viewModel.readings.collectAsStateWithLifecycle()
+    val dateFilter  by viewModel.dateFilter.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableIntStateOf(0) }
 
     Scaffold(
@@ -38,6 +42,12 @@ fun HistoryScreen(onNavigateBack: () -> Unit) {
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // 日付フィルターチップ行
+            DateFilterRow(
+                selected = dateFilter,
+                onSelect = { viewModel.setDateFilter(it) },
+            )
+            HorizontalDivider()
             TabRow(selectedTabIndex = selectedTab) {
                 Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("リスト") })
                 Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("マップ") })
@@ -46,6 +56,29 @@ fun HistoryScreen(onNavigateBack: () -> Unit) {
                 0 -> ReadingsList(readings = readings)
                 1 -> InstrumentMap(readings = readings, modifier = Modifier.fillMaxSize())
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DateFilterRow(
+    selected: DateFilter,
+    onSelect: (DateFilter) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        DateFilter.entries.forEach { filter ->
+            FilterChip(
+                selected = filter == selected,
+                onClick  = { onSelect(filter) },
+                label    = { Text(filter.label) },
+            )
         }
     }
 }
