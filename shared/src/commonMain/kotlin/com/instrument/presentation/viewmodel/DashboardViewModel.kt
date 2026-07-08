@@ -8,6 +8,7 @@ import com.instrument.domain.model.SensorReading
 import com.instrument.domain.repository.BleConnectionState
 import com.instrument.domain.usecase.AlarmUseCase
 import com.instrument.domain.usecase.ConnectDeviceUseCase
+import com.instrument.domain.usecase.LogMeasurementUseCase
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,8 +25,9 @@ data class DashboardUiState(
 )
 
 class DashboardViewModel(
-    private val alarmUseCase  : AlarmUseCase,
-    private val connectDevice : ConnectDeviceUseCase,
+    private val alarmUseCase   : AlarmUseCase,
+    private val connectDevice  : ConnectDeviceUseCase,
+    private val logMeasurement : LogMeasurementUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -56,15 +58,20 @@ class DashboardViewModel(
         monitorJob?.cancel()
         monitorJob = viewModelScope.launch {
             alarmUseCase.observe().collect { status ->
-                val isCritical = status.level == GasLevel.CRITICAL
+                // DANGER 以上は GPS 座標と紐付けて自動ロギング
+                launch { logMeasurement.invoke(status) }
+
+                // WARNING 以上でアラームバナーを表示
+                val isAlarmActive = status.level >= GasLevel.WARNING
                 _uiState.update {
                     it.copy(
-                        gasStatus    = status,
-                        isAlarmActive = isCritical,
-                        alarmLevel   = if (isCritical) status.level else it.alarmLevel,
-                        errorMessage = null,
+                        gasStatus     = status,
+                        isAlarmActive = isAlarmActive,
+                        alarmLevel    = if (isAlarmActive) status.level else it.alarmLevel,
+                        errorMessage  = null,
                     )
                 }
+                // 直近60件の読み取り履歴を保持
                 val deque = ArrayDeque(_recentHistory.value)
                 if (deque.size >= 60) deque.removeFirst()
                 deque.addLast(status.reading)
