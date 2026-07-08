@@ -40,6 +40,10 @@ kotlin {
             implementation(libs.lifecycle.viewmodel)
             implementation(libs.lifecycle.compose)
         }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+        }
         androidMain.dependencies {
             implementation(libs.koin.android)
             implementation(libs.coroutines.android)
