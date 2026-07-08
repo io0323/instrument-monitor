@@ -19,7 +19,7 @@ val domainModule = module {
 }
 
 val viewModelModule = module {
-    factory { DashboardViewModel(get(), get()) }
+    factory { DashboardViewModel(get(), get(), get()) }
     factory { DeviceListViewModel(get(), get()) }
     factory { HistoryViewModel(get()) }
 }
