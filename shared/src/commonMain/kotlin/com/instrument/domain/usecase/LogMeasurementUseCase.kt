@@ -5,6 +5,8 @@ import com.instrument.domain.model.GasStatus
 import com.instrument.domain.model.GeoTaggedReading
 import com.instrument.domain.repository.GpsRepository
 import com.instrument.domain.repository.LogRepository
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.withTimeoutOrNull
 
 // DANGER以上のガス状態を GPS 座標付きでロギングするユースケース
 class LogMeasurementUseCase(
@@ -14,11 +16,10 @@ class LogMeasurementUseCase(
     suspend operator fun invoke(status: GasStatus, manualSave: Boolean = false): Result<Unit> {
         if (status.level < GasLevel.DANGER && !manualSave) return Result.success(Unit)
         return runCatching {
-            val location = runCatching {
-                var loc: Pair<Double, Double>? = null
-                gpsRepo.observeLocation().collect { loc = it; return@collect }
-                loc ?: Pair(0.0, 0.0)
-            }.getOrDefault(Pair(0.0, 0.0))
+            // 位置情報が取得できない/遅延する場合はフォールバック座標で継続する
+            val location = withTimeoutOrNull(1_000L) {
+                gpsRepo.observeLocation().firstOrNull()
+            } ?: Pair(0.0, 0.0)
             logRepo.save(
                 GeoTaggedReading(
                     reading = status.reading,
@@ -26,7 +27,7 @@ class LogMeasurementUseCase(
                     lng     = location.second,
                     level   = status.level,
                 )
-            )
+            ).getOrThrow()
             Unit
         }
     }
