@@ -27,7 +27,7 @@ class SqlDelightLogRepository(driverFactory: DatabaseDriverFactory) : LogReposit
             gas_level   = reading.level.name,
             timestamp   = reading.reading.timestamp,
         )
-        db.sensorReadingsQueries.selectAll().executeAsList().firstOrNull()?.id ?: 0L
+        db.sensorReadingsQueries.selectAll().executeAsList().lastOrNull()?.id ?: 0L
     }
 
     override fun getAllReadings(): Flow<List<GeoTaggedReading>> =
