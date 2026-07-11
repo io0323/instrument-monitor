@@ -24,15 +24,19 @@ enum class DateFilter(val label: String) {
 }
 
 // 計測履歴の表示・CSV書き出しを担う ViewModel
-class HistoryViewModel(private val logRepo: LogRepository) : ViewModel() {
+class HistoryViewModel(
+    private val logRepo: LogRepository,
+    private val clock: Clock = Clock.System,
+    private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
+) : ViewModel() {
 
     private val _dateFilter = MutableStateFlow(DateFilter.ALL)
     val dateFilter: StateFlow<DateFilter> = _dateFilter
 
     val readings: StateFlow<List<GeoTaggedReading>> =
         combine(logRepo.getAllReadings(), _dateFilter) { all, filter ->
-            val tz  = TimeZone.currentSystemDefault()
-            val now = Clock.System.now()
+            val tz  = timeZone
+            val now = clock.now()
             when (filter) {
                 DateFilter.ALL   -> all
                 DateFilter.TODAY -> {

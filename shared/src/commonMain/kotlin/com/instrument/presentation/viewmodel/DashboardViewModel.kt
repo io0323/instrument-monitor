@@ -67,7 +67,7 @@ class DashboardViewModel(
                     it.copy(
                         gasStatus     = status,
                         isAlarmActive = isAlarmActive,
-                        alarmLevel    = if (isAlarmActive) status.level else it.alarmLevel,
+                        alarmLevel    = if (isAlarmActive) status.level else null,
                         errorMessage  = null,
                     )
                 }
@@ -82,6 +82,6 @@ class DashboardViewModel(
 
     fun dismissAlarm() {
         alarmUseCase.dismiss()
-        _uiState.update { it.copy(isAlarmActive = false) }
+        _uiState.update { it.copy(isAlarmActive = false, alarmLevel = null) }
     }
 }
