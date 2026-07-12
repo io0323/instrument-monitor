@@ -79,9 +79,9 @@ fun DashboardScreen(
             }
         }
 
-        if (uiState.isAlarmActive && uiState.alarmLevel == GasLevel.CRITICAL) {
+        if (shouldShowAlarmOverlay(uiState.isAlarmActive, uiState.alarmLevel)) {
             AlarmOverlay(
-                level = uiState.alarmLevel ?: GasLevel.CRITICAL,
+                level = uiState.alarmLevel ?: GasLevel.WARNING,
                 ppm = uiState.gasStatus?.reading?.ppm ?: 0f,
                 onDismiss = { viewModel.dismissAlarm() },
             )
@@ -246,6 +246,9 @@ fun GasGauge(ppm: Float, level: GasLevel, modifier: Modifier = Modifier) {
 
 private fun ppmToAngle(ppm: Float): Float = (ppm / 500f) * 140f
 
+internal fun shouldShowAlarmOverlay(isAlarmActive: Boolean, alarmLevel: GasLevel?): Boolean =
+    isAlarmActive && alarmLevel != null
+
 @Composable
 fun SensorCard(label: String, value: String, modifier: Modifier = Modifier) {
     Card(modifier = modifier) {
@@ -318,6 +321,13 @@ fun TrendIndicator(status: GasStatus?, history: List<SensorReading>) {
 @Composable
 fun AlarmOverlay(level: GasLevel, ppm: Float, onDismiss: () -> Unit) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val overlayColor = GasLevelColors[level] ?: (GasLevelColors[GasLevel.CRITICAL] ?: Color.Red)
+    val title = when (level) {
+        GasLevel.WARNING -> "⚠ 注意レベル検出"
+        GasLevel.DANGER -> "⚠ 危険レベル検出"
+        GasLevel.CRITICAL -> "🚨 緊急レベル検出"
+        GasLevel.SAFE -> "監視中"
+    }
     val alpha by infiniteTransition.animateFloat(
         initialValue = 0.85f, targetValue = 1.0f, label = "pulse",
         animationSpec = infiniteRepeatable(tween(500), RepeatMode.Reverse),
@@ -325,14 +335,14 @@ fun AlarmOverlay(level: GasLevel, ppm: Float, onDismiss: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background((GasLevelColors[GasLevel.CRITICAL] ?: Color.Red).copy(alpha = alpha)),
+            .background(overlayColor.copy(alpha = alpha)),
         contentAlignment = Alignment.Center,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("⚠ 危険レベル検出", style = MaterialTheme.typography.displayMedium, color = Color.White)
+            Text(title, style = MaterialTheme.typography.displayMedium, color = Color.White)
             Text(
                 "${ppm.toInt()} ppm",
                 style = MaterialTheme.typography.displayLarge,
