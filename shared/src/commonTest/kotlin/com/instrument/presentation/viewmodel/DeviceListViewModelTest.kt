@@ -101,14 +101,32 @@ class DeviceListViewModelTest {
         assertTrue(vm.navigateToDashboard())
     }
 
+    @Test
+    fun startScanを連続呼び出ししてもscanDevicesは1回だけ実行される() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+
+        vm.startScan()
+        vm.startScan()
+        advanceUntilIdle()
+
+        assertTrue(vm.isScanning.value)
+        assertEquals(1, fixture.scanInvocationCount)
+    }
+
     private class Fixture {
         private val scanFlow = MutableStateFlow<List<GasDevice>>(emptyList())
         private val connectionFlow = MutableStateFlow<BleConnectionState>(BleConnectionState.Disconnected)
+        var scanInvocationCount: Int = 0
+            private set
         var lastConnectedDeviceId: String? = null
             private set
 
         private val bleRepo = object : BleRepository {
-            override fun scanDevices(): Flow<List<GasDevice>> = scanFlow
+            override fun scanDevices(): Flow<List<GasDevice>> {
+                scanInvocationCount += 1
+                return scanFlow
+            }
 
             override fun connect(deviceId: String): Flow<BleConnectionState> {
                 lastConnectedDeviceId = deviceId
@@ -133,5 +151,3 @@ class DeviceListViewModelTest {
         }
     }
 }
-
-
