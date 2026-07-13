@@ -43,7 +43,22 @@ class DashboardViewModel(
     fun connectDevice(deviceId: String) {
         viewModelScope.launch {
             connectDevice.invoke(deviceId).collect { state ->
-                _uiState.update { it.copy(connectionState = state) }
+                _uiState.update {
+                    when (state) {
+                        BleConnectionState.Scanning,
+                        BleConnectionState.Connecting,
+                        BleConnectionState.Connected,
+                        BleConnectionState.Disconnected -> it.copy(
+                            connectionState = state,
+                            errorMessage = null,
+                        )
+
+                        is BleConnectionState.Error -> it.copy(
+                            connectionState = state,
+                            errorMessage = state.message,
+                        )
+                    }
+                }
                 if (state == BleConnectionState.Connected) startMonitoring()
             }
         }
@@ -83,5 +98,10 @@ class DashboardViewModel(
     fun dismissAlarm() {
         alarmUseCase.dismiss()
         _uiState.update { it.copy(isAlarmActive = false, alarmLevel = null) }
+    }
+
+    override fun onCleared() {
+        monitorJob?.cancel()
+        super.onCleared()
     }
 }

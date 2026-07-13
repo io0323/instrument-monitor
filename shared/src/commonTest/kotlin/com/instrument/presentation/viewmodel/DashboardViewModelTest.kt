@@ -108,13 +108,28 @@ class DashboardViewModelTest {
         assertEquals(64f, vm.recentHistory.value.last().ppm)
     }
 
+    @Test
+    fun connectDeviceでError時にerrorMessageへ反映される() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        vm.connectDevice("broken-device")
+        fixture.emitConnectionState(BleConnectionState.Error("接続に失敗しました"))
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.connectionState is BleConnectionState.Error)
+        assertEquals("接続に失敗しました", vm.uiState.value.errorMessage)
+    }
+
     private class Fixture {
         private val sensorFlow = MutableSharedFlow<SensorReading>(replay = 1, extraBufferCapacity = 128)
+        private val connectionFlow = MutableSharedFlow<BleConnectionState>(replay = 1, extraBufferCapacity = 16)
         val savedReadings = MutableStateFlow<List<GeoTaggedReading>>(emptyList())
 
         private val bleRepo = object : BleRepository {
             override fun scanDevices(): Flow<List<GasDevice>> = flowOf(emptyList())
-            override fun connect(deviceId: String): Flow<BleConnectionState> = flowOf(BleConnectionState.Connected)
+            override fun connect(deviceId: String): Flow<BleConnectionState> = connectionFlow
             override fun observeSensorData(): Flow<SensorReading> = sensorFlow
             override suspend fun disconnect() {}
         }
@@ -161,8 +176,10 @@ class DashboardViewModelTest {
                 )
             )
         }
+
+        suspend fun emitConnectionState(state: BleConnectionState) {
+            connectionFlow.emit(state)
+        }
     }
 }
-
-
 

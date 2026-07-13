@@ -49,4 +49,10 @@ class DeviceListViewModel(
 
     fun navigateToDashboard(): Boolean =
         _connectionState.value == BleConnectionState.Connected
+
+    override fun onCleared() {
+        scanJob?.cancel()
+        _isScanning.value = false
+        super.onCleared()
+    }
 }
