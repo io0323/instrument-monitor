@@ -122,7 +122,7 @@ cd instrument-monitor
 
 | 理研計器 求人要件 | 実装箇所 |
 |----------------|---------|
-| BLE通信 | `shared/data/ble/` (Kable) |
+| BLE通信 | `shared/src/*Main/kotlin/com/instrument/data/ble/` + `*BleRepository.kt` (Kable) |
 | 音声再生 | `AndroidAlarmController` (MediaPlayer / ToneGenerator) |
 | 振動制御 | `AndroidAlarmController` (VibrationEffect API 26+) |
 | GPS機能 | `AndroidGpsSource` (FusedLocationProviderClient) |
