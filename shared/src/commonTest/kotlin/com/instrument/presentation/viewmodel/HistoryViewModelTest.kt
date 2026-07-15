@@ -137,6 +137,34 @@ class HistoryViewModelTest {
         )
     }
 
+    @Test
+    fun export保存処理が失敗した場合はErrorになる() = runTest {
+        val repo = FakeLogRepository(emptyList(), exportResult = Result.success("ppm,lat,lng"))
+        val vm = HistoryViewModel(repo)
+
+        vm.exportCsv { Result.failure(IllegalStateException("save failed")) }
+        advanceUntilIdle()
+
+        assertEquals(
+            HistoryViewModel.ExportState.Error("save failed"),
+            vm.exportState.value
+        )
+    }
+
+    @Test
+    fun export保存処理がメッセージなしで失敗した場合は既定文言になる() = runTest {
+        val repo = FakeLogRepository(emptyList(), exportResult = Result.success("ppm,lat,lng"))
+        val vm = HistoryViewModel(repo)
+
+        vm.exportCsv { Result.failure(IllegalStateException()) }
+        advanceUntilIdle()
+
+        assertEquals(
+            HistoryViewModel.ExportState.Error("不明なエラー"),
+            vm.exportState.value
+        )
+    }
+
     private class FixedClock(private val now: Instant) : Clock {
         override fun now(): Instant = now
     }
@@ -168,5 +196,6 @@ class HistoryViewModelTest {
         return reading(epochMs, ppm)
     }
 }
+
 
 
