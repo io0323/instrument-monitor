@@ -52,7 +52,7 @@ class HistoryViewModelTest {
                 readingAt(LocalDate(2026, 7, 11), 8, 30, tz, 30f),
             )
         )
-        val vm = HistoryViewModel(repo, FixedClock(now), tz)
+        val vm = HistoryViewModel(repo, clock = FixedClock(now), timeZone = tz)
 
         val collector = backgroundScope.launch { vm.readings.collect { } }
         vm.setDateFilter(DateFilter.TODAY)
@@ -76,7 +76,7 @@ class HistoryViewModelTest {
                 reading(epochMs = cutoff + 1, ppm = 30f),
             )
         )
-        val vm = HistoryViewModel(repo, FixedClock(now), tz)
+        val vm = HistoryViewModel(repo, clock = FixedClock(now), timeZone = tz)
 
         val collector = backgroundScope.launch { vm.readings.collect { } }
         vm.setDateFilter(DateFilter.WEEK)
@@ -98,7 +98,7 @@ class HistoryViewModelTest {
                 readingAt(LocalDate(2026, 7, 10), 18, 0, tz, 30f),
             )
         )
-        val vm = HistoryViewModel(repo, FixedClock(now), tz)
+        val vm = HistoryViewModel(repo, clock = FixedClock(now), timeZone = tz)
 
         val collector = backgroundScope.launch { vm.readings.collect { } }
         vm.setDateFilter(DateFilter.MONTH)
@@ -196,6 +196,9 @@ class HistoryViewModelTest {
         return reading(epochMs, ppm)
     }
 }
+
+
+
 
 
 
