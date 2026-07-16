@@ -244,7 +244,7 @@ fun GasGauge(ppm: Float, level: GasLevel, modifier: Modifier = Modifier) {
     }
 }
 
-private fun ppmToAngle(ppm: Float): Float = (ppm / 500f) * 140f
+internal fun ppmToAngle(ppm: Float): Float = (ppm / 500f) * 140f
 
 internal fun shouldShowAlarmOverlay(isAlarmActive: Boolean, alarmLevel: GasLevel?): Boolean =
     isAlarmActive && alarmLevel != null

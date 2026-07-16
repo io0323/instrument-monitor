@@ -115,7 +115,7 @@ private fun ReadingsList(readings: List<GeoTaggedReading>) {
     }
 }
 
-private fun formatTimestamp(timestamp: Long): String {
+internal fun formatTimestamp(timestamp: Long): String {
     val dt = Instant.fromEpochMilliseconds(timestamp)
         .toLocalDateTime(TimeZone.currentSystemDefault())
     val mm  = dt.monthNumber.toString().padStart(2, '0')

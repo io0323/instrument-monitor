@@ -105,6 +105,48 @@ class AlarmUseCaseTest {
     }
 
     @Test
+    fun SAFE後に再度同じWARNINGが来ても再発報する() = runTest {
+        // WARNING → SAFE → WARNING の順で来た場合、2回目の WARNING も trigger されるべき
+        // SAFE 時に lastAlarmLevel がリセットされないと2回目が30秒抑制に引っかかる
+        val triggeredLevels = mutableListOf<GasLevel>()
+        var dismissCount = 0
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) { triggeredLevels += level }
+            override fun dismiss() { dismissCount++ }
+            override fun release() {}
+        }
+
+        AlarmUseCase(fakeMonitor(100f, 30f, 100f), controller).observe().toList()
+
+        assertEquals(1, dismissCount, "SAFE (ppm=30f) で dismiss が1回呼ばれるべき")
+        assertEquals(
+            listOf(GasLevel.WARNING, GasLevel.WARNING),
+            triggeredLevels,
+            "WARNING → SAFE → WARNING で trigger が2回呼ばれるべき",
+        )
+    }
+
+    @Test
+    fun SAFE後に同一DANGERレベルが再度来ても再発報する() = runTest {
+        // SAFE でリセット後、同一レベルの再発報が正しく行われることを検証
+        val triggeredLevels = mutableListOf<GasLevel>()
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) { triggeredLevels += level }
+            override fun dismiss() {}
+            override fun release() {}
+        }
+
+        // DANGER → SAFE → DANGER の周期
+        AlarmUseCase(fakeMonitor(250f, 30f, 250f), controller).observe().toList()
+
+        assertEquals(
+            listOf(GasLevel.DANGER, GasLevel.DANGER),
+            triggeredLevels,
+            "DANGER → SAFE → DANGER で trigger が2回呼ばれるべき",
+        )
+    }
+
+    @Test
     fun すべての危険レベルが順に発報される() = runTest {
         val triggeredLevels = mutableListOf<GasLevel>()
         val controller = object : AlarmController {
