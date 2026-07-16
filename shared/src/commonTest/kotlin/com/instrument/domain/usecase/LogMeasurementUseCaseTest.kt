@@ -7,7 +7,9 @@ import com.instrument.domain.model.SensorReading
 import com.instrument.domain.model.Trend
 import com.instrument.domain.repository.GpsRepository
 import com.instrument.domain.repository.LogRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -102,5 +104,41 @@ class LogMeasurementUseCaseTest {
         buildUseCase().invoke(gasStatus(GasLevel.DANGER))
         assertEquals(250f, savedReadings.first().reading.ppm)
     }
+
+    @Test
+    fun GPS取得タイムアウト時はフォールバック座標_0_0_で保存される() = runTest {
+        // 1000ms以上遅延するGPSリポジトリでタイムアウトをシミュレート
+        val slowGpsRepo = object : GpsRepository {
+            override fun observeLocation(): Flow<Pair<Double, Double>> = flow {
+                delay(5_000L) // UseCase の timeout (1000ms) より長い
+                emit(Pair(35.6812, 139.7671))
+            }
+        }
+        val useCase = LogMeasurementUseCase(fakeLogRepo, slowGpsRepo)
+        val result = useCase.invoke(gasStatus(GasLevel.DANGER))
+
+        assertTrue(result.isSuccess)
+        assertEquals(1, savedReadings.size)
+        assertEquals(0.0, savedReadings.first().lat,  "タイムアウト時は lat=0.0 でフォールバック")
+        assertEquals(0.0, savedReadings.first().lng,  "タイムアウト時は lng=0.0 でフォールバック")
+    }
+
+    @Test
+    fun save失敗時はResultFailureが返る() = runTest {
+        val failingLogRepo = object : LogRepository {
+            override suspend fun save(reading: GeoTaggedReading): Result<Long> =
+                Result.failure(RuntimeException("DB write failed"))
+            override fun getAllReadings(): Flow<List<GeoTaggedReading>> = flowOf(emptyList())
+            override fun getDangerousReadings(): Flow<List<GeoTaggedReading>> = flowOf(emptyList())
+            override suspend fun deleteOlderThan(epochMs: Long): Result<Unit> = Result.success(Unit)
+            override suspend fun exportCsv(): Result<String> = Result.success("")
+        }
+        val useCase = LogMeasurementUseCase(failingLogRepo, fakeGpsRepo)
+        val result = useCase.invoke(gasStatus(GasLevel.DANGER))
+
+        assertTrue(result.isFailure, "save 失敗時は Result.failure が返るべき")
+        assertEquals("DB write failed", result.exceptionOrNull()?.message)
+    }
 }
+
 

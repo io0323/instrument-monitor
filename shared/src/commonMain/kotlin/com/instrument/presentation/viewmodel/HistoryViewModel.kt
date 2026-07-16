@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.instrument.domain.model.GeoTaggedReading
 import com.instrument.domain.repository.LogRepository
+import com.instrument.domain.usecase.ExportCsvUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,7 @@ enum class DateFilter(val label: String) {
 // 計測履歴の表示・CSV書き出しを担う ViewModel
 class HistoryViewModel(
     private val logRepo: LogRepository,
+    private val exportCsvUseCase: ExportCsvUseCase = ExportCsvUseCase(logRepo),
     private val clock: Clock = Clock.System,
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
 ) : ViewModel() {
@@ -67,8 +69,7 @@ class HistoryViewModel(
     fun exportCsv(onExport: suspend (String) -> Result<String>) {
         viewModelScope.launch {
             _exportState.value = ExportState.Exporting
-            logRepo.exportCsv()
-                .mapCatching { csv -> onExport(csv).getOrThrow() }
+            exportCsvUseCase(onSave = onExport)
                 .onSuccess { uri -> _exportState.value = ExportState.Done(uri) }
                 .onFailure { e -> _exportState.value = ExportState.Error(e.message ?: "不明なエラー") }
         }

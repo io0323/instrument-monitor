@@ -71,4 +71,54 @@ class AlarmUseCaseTest {
 
         assertEquals(listOf(GasLevel.WARNING, GasLevel.DANGER), triggeredLevels)
     }
+
+    @Test
+    fun CRITICALレベルでtriggerが呼ばれる() = runTest {
+        val triggeredLevels = mutableListOf<GasLevel>()
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) { triggeredLevels += level }
+            override fun dismiss() {}
+            override fun release() {}
+        }
+
+        AlarmUseCase(fakeMonitor(380f), controller).observe().toList()
+
+        assertEquals(listOf(GasLevel.CRITICAL), triggeredLevels)
+    }
+
+    @Test
+    fun SAFE後に再度WARNINGが来るとtriggerが呼ばれる() = runTest {
+        // SAFE → WARNING の順で来た場合、lastAlarmLevel がリセットされて再発報すべき
+        val triggeredLevels = mutableListOf<GasLevel>()
+        var dismissCount = 0
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) { triggeredLevels += level }
+            override fun dismiss() { dismissCount++ }
+            override fun release() {}
+        }
+
+        AlarmUseCase(fakeMonitor(30f, 100f), controller).observe().toList()
+
+        // SAFE → dismiss が1回、その後の WARNING で trigger が1回
+        assertEquals(1, dismissCount)
+        assertEquals(listOf(GasLevel.WARNING), triggeredLevels)
+    }
+
+    @Test
+    fun すべての危険レベルが順に発報される() = runTest {
+        val triggeredLevels = mutableListOf<GasLevel>()
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) { triggeredLevels += level }
+            override fun dismiss() {}
+            override fun release() {}
+        }
+
+        // WARNING → DANGER → CRITICAL と段階的に上昇
+        AlarmUseCase(fakeMonitor(100f, 250f, 380f), controller).observe().toList()
+
+        assertEquals(
+            listOf(GasLevel.WARNING, GasLevel.DANGER, GasLevel.CRITICAL),
+            triggeredLevels
+        )
+    }
 }
