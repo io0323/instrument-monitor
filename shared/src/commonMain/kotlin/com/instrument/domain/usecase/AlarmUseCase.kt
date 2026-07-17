@@ -22,6 +22,9 @@ class AlarmUseCase(
     private fun handleAlarm(status: GasStatus) {
         if (status.level == GasLevel.SAFE) {
             controller.dismiss()
+            // SAFE に戻ったらアラーム履歴をリセットし、次の上昇時に即座に再発報できるようにする
+            lastAlarmLevel = null
+            lastAlarmTime  = 0L
             return
         }
         val now = Clock.System.now().toEpochMilliseconds()
