@@ -2,6 +2,7 @@ package com.instrument.di
 
 import com.instrument.domain.usecase.AlarmUseCase
 import com.instrument.domain.usecase.ConnectDeviceUseCase
+import com.instrument.domain.usecase.DeleteOldLogsUseCase
 import com.instrument.domain.usecase.LogMeasurementUseCase
 import com.instrument.domain.usecase.MonitorGasUseCase
 import com.instrument.domain.usecase.ScanDevicesUseCase
@@ -16,6 +17,7 @@ val domainModule = module {
     factory { ScanDevicesUseCase(get()) }
     factory { LogMeasurementUseCase(get(), get()) }
     factory { AlarmUseCase(get(), get()) }
+    factory { DeleteOldLogsUseCase(get()) }
 }
 
 val viewModelModule = module {

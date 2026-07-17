@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.instrument.domain.model.GeoTaggedReading
 import com.instrument.domain.repository.LogRepository
+import com.instrument.domain.usecase.DeleteOldLogsUseCase
 import com.instrument.domain.usecase.ExportCsvUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -24,10 +25,11 @@ enum class DateFilter(val label: String) {
     MONTH("今月"),
 }
 
-// 計測履歴の表示・CSV書き出しを担う ViewModel
+// 計測履歴の表示・CSV書き出し・古いログ削除を担う ViewModel
 class HistoryViewModel(
     private val logRepo: LogRepository,
     private val exportCsvUseCase: ExportCsvUseCase = ExportCsvUseCase(logRepo),
+    private val deleteOldLogsUseCase: DeleteOldLogsUseCase = DeleteOldLogsUseCase(logRepo),
     private val clock: Clock = Clock.System,
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
 ) : ViewModel() {
@@ -75,10 +77,41 @@ class HistoryViewModel(
         }
     }
 
+    // エクスポート状態を Idle にリセットする（再エクスポート前に呼ぶ）
+    fun clearExportState() {
+        _exportState.value = ExportState.Idle
+    }
+
+    private val _deleteState = MutableStateFlow<DeleteState>(DeleteState.Idle)
+    val deleteState: StateFlow<DeleteState> = _deleteState
+
+    // [daysToKeep] 日分より古いログを削除する（デフォルト 30 日）
+    fun deleteOldLogs(daysToKeep: Int = 30) {
+        viewModelScope.launch {
+            _deleteState.value = DeleteState.Deleting
+            val result: Result<Unit> = deleteOldLogsUseCase(daysToKeep = daysToKeep)
+            result
+                .onSuccess { _deleteState.value = DeleteState.Done }
+                .onFailure { e -> _deleteState.value = DeleteState.Error(e.message ?: "不明なエラー") }
+        }
+    }
+
+    // 削除状態を Idle にリセットする
+    fun clearDeleteState() {
+        _deleteState.value = DeleteState.Idle
+    }
+
     sealed class ExportState {
         object Idle                           : ExportState()
         object Exporting                      : ExportState()
         data class Done(val filePath: String) : ExportState()
         data class Error(val msg: String)     : ExportState()
+    }
+
+    sealed class DeleteState {
+        object Idle     : DeleteState()
+        object Deleting : DeleteState()
+        object Done     : DeleteState()
+        data class Error(val msg: String) : DeleteState()
     }
 }
