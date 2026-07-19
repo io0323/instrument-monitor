@@ -60,5 +60,6 @@ private fun com.instrument.db.Sensor_readings.toGeoTaggedReading() = GeoTaggedRe
     reading = SensorReading(ppm.toFloat(), temperature.toFloat(), humidity.toFloat(), timestamp),
     lat     = lat,
     lng     = lng,
-    level   = GasLevel.valueOf(gas_level),
+    // DB に不正な文字列が格納されていた場合は SAFE にフォールバックして例外を防ぐ
+    level   = GasLevel.entries.firstOrNull { it.name == gas_level } ?: GasLevel.SAFE,
 )
