@@ -102,6 +102,8 @@ class DashboardViewModel(
 
     override fun onCleared() {
         monitorJob?.cancel()
+        // AlarmController が保持するリソース（音声・振動）を解放する
+        alarmUseCase.release()
         super.onCleared()
     }
 }

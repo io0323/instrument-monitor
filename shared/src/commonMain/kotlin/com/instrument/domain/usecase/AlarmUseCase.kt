@@ -19,6 +19,10 @@ class AlarmUseCase(
 
     fun dismiss() = controller.dismiss()
 
+    // AlarmController が保持する音声・振動リソースを解放する
+    // ViewModel.onCleared() から必ず呼ぶこと
+    fun release() = controller.release()
+
     private fun handleAlarm(status: GasStatus) {
         if (status.level == GasLevel.SAFE) {
             controller.dismiss()
