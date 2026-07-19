@@ -122,6 +122,87 @@ class DashboardViewModelTest {
         assertEquals("接続に失敗しました", vm.uiState.value.errorMessage)
     }
 
+    @Test
+    fun startMockModeでconnectionStateがConnectedになりgasStatusが更新される() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        // init で startMockMode() が呼ばれる
+        advanceUntilIdle()
+
+        assertEquals(BleConnectionState.Connected, vm.uiState.value.connectionState)
+
+        // センサー値を1件流す
+        fixture.emitPpm(80f)
+        advanceUntilIdle()
+
+        assertEquals(80f, vm.uiState.value.gasStatus?.reading?.ppm)
+    }
+
+    @Test
+    fun WARNINGレベルはalarmActiveだがlogRepoへの保存は行われない() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        // WARNING: 50 ≤ ppm < 200
+        fixture.emitPpm(100f)
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.isAlarmActive, "WARNING でアラームが有効になるべき")
+        assertEquals(GasLevel.WARNING, vm.uiState.value.alarmLevel)
+        // WARNING は DANGER 未満なので自動ログ保存されない
+        assertEquals(0, fixture.savedReadings.value.size, "WARNING 時はログ保存されない")
+    }
+
+    @Test
+    fun connectDeviceでScanningConnectingConnectedの状態遷移が反映される() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        val states = mutableListOf<BleConnectionState>()
+
+        vm.connectDevice("target-device")
+        fixture.emitConnectionState(BleConnectionState.Scanning)
+        advanceUntilIdle()
+        states += vm.uiState.value.connectionState
+
+        fixture.emitConnectionState(BleConnectionState.Connecting)
+        advanceUntilIdle()
+        states += vm.uiState.value.connectionState
+
+        fixture.emitConnectionState(BleConnectionState.Connected)
+        advanceUntilIdle()
+        states += vm.uiState.value.connectionState
+
+        assertEquals(
+            listOf(
+                BleConnectionState.Scanning,
+                BleConnectionState.Connecting,
+                BleConnectionState.Connected,
+            ),
+            states,
+        )
+    }
+
+    @Test
+    fun connectDeviceでConnected後にセンサーデータが受信できる() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        vm.connectDevice("target-device")
+        fixture.emitConnectionState(BleConnectionState.Connected)
+        advanceUntilIdle()
+
+        // Connected 後にセンサー値を流す
+        fixture.emitPpm(250f)
+        advanceUntilIdle()
+
+        assertEquals(250f, vm.uiState.value.gasStatus?.reading?.ppm)
+        assertEquals(GasLevel.DANGER, vm.uiState.value.gasStatus?.level)
+    }
+
     private class Fixture {
         private val sensorFlow = MutableSharedFlow<SensorReading>(replay = 1, extraBufferCapacity = 128)
         private val connectionFlow = MutableSharedFlow<BleConnectionState>(replay = 1, extraBufferCapacity = 16)
@@ -182,4 +263,3 @@ class DashboardViewModelTest {
         }
     }
 }
-

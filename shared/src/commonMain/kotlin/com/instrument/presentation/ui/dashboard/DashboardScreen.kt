@@ -89,6 +89,18 @@ fun DashboardScreen(
     }
 }
 
+// 接続状態に応じた表示ラベルを返す純粋関数
+internal fun connectionBarLabel(state: BleConnectionState, deviceName: String?): String {
+    val connected  = state == BleConnectionState.Connected
+    val connecting = state == BleConnectionState.Connecting || state == BleConnectionState.Scanning
+    return when {
+        connected  -> deviceName ?: "接続済み"
+        connecting -> "接続中..."
+        state is BleConnectionState.Error -> state.message
+        else       -> "未接続"
+    }
+}
+
 @Composable
 fun ConnectionBar(deviceName: String?, state: BleConnectionState, onScanClick: () -> Unit) {
     val connected  = state == BleConnectionState.Connected
@@ -112,12 +124,7 @@ fun ConnectionBar(deviceName: String?, state: BleConnectionState, onScanClick: (
         }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = when {
-                connected  -> deviceName ?: "接続済み"
-                connecting -> "接続中..."
-                state is BleConnectionState.Error -> state.message
-                else       -> "未接続"
-            },
+            text = connectionBarLabel(state, deviceName),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
@@ -292,10 +299,14 @@ fun RealtimeChart(history: List<SensorReading>, modifier: Modifier = Modifier) {
     }
 }
 
+// 直近 [count] 件の ppm 平均を返す。history が空の場合は 0.0 を返す
+internal fun computeRecentAverage(history: List<SensorReading>, count: Int = 5): Double =
+    if (history.isEmpty()) 0.0 else history.takeLast(count).map { it.ppm }.average()
+
 @Composable
 fun TrendIndicator(status: GasStatus?, history: List<SensorReading>) {
     val trend = status?.trend ?: Trend.STABLE
-    val avg = if (history.isNotEmpty()) history.takeLast(5).map { it.ppm }.average() else 0.0
+    val avg = computeRecentAverage(history)
     val arrow = when (trend) {
         Trend.RISING  -> "↑"
         Trend.FALLING -> "↓"

@@ -114,6 +114,47 @@ class DeviceListViewModelTest {
         assertEquals(1, fixture.scanInvocationCount)
     }
 
+    @Test
+    fun selectDeviceでError状態がconnectionStateに反映される() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+
+        vm.selectDevice(GasDevice(id = "BAD", name = "bad-device", rssi = -90))
+        fixture.emitConnectionState(BleConnectionState.Error("BLE エラー"))
+        advanceUntilIdle()
+
+        val state = vm.connectionState.value
+        assertTrue(state is BleConnectionState.Error, "Error 状態が反映されるべき")
+        assertEquals("BLE エラー", (state as BleConnectionState.Error).message)
+    }
+
+    @Test
+    fun stopScanが未スキャン状態でも安全に呼べる() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+
+        // startScan を呼ばずに stopScan を呼んでも例外が出ない
+        vm.stopScan()
+        advanceUntilIdle()
+
+        assertFalse(vm.isScanning.value)
+    }
+
+    @Test
+    fun 接続後Disconnectedに遷移するとnavigateToDashboardがfalseになる() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+
+        vm.selectDevice(GasDevice(id = "TARGET", name = "target", rssi = -60))
+        fixture.emitConnectionState(BleConnectionState.Connected)
+        advanceUntilIdle()
+        assertTrue(vm.navigateToDashboard())
+
+        fixture.emitConnectionState(BleConnectionState.Disconnected)
+        advanceUntilIdle()
+        assertFalse(vm.navigateToDashboard())
+    }
+
     private class Fixture {
         private val scanFlow = MutableStateFlow<List<GasDevice>>(emptyList())
         private val connectionFlow = MutableStateFlow<BleConnectionState>(BleConnectionState.Disconnected)
@@ -151,3 +192,4 @@ class DeviceListViewModelTest {
         }
     }
 }
+
