@@ -124,3 +124,8 @@ internal fun formatTimestamp(timestamp: Long): String {
     val min = dt.minute.toString().padStart(2, '0')
     return "$mm/$dd $hh:$min"
 }
+
+// GPS 座標を "lat,lng" 形式（小数点以下4桁）の文字列に変換する純粋関数
+internal fun formatCoordinate(lat: Double, lng: Double): String =
+    "${"%.4f".format(lat)},${"%.4f".format(lng)}"
+
