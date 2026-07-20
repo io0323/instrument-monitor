@@ -3,6 +3,8 @@ package com.instrument.domain.usecase
 import com.instrument.data.ble.toSensorReading
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 // BLE パケット → SensorReading の変換ロジックを検証するテスト
 class BleParserTest {
@@ -61,5 +63,43 @@ class BleParserTest {
         assertEquals(25.5f, reading.temperature)
         assertEquals(55.0f, reading.humidity)
     }
-}
 
+    // --- 異常系: 入力バリデーション ---
+
+    @Test
+    fun 空パケットはIllegalArgumentExceptionを投げる() {
+        val exception = assertFailsWith<IllegalArgumentException> {
+            byteArrayOf().toSensorReading()
+        }
+        // エラーメッセージに実際のサイズが含まれることを確認
+        assertTrue(exception.message?.contains("0") == true)
+    }
+
+    @Test
+    fun バイト数不足パケットはIllegalArgumentExceptionを投げる() {
+        // 6バイト必要なのに5バイトしかない
+        assertFailsWith<IllegalArgumentException> {
+            byteArrayOf(0x00, 0x64, 0x00, 0xFC.toByte(), 0x02).toSensorReading()
+        }
+    }
+
+    @Test
+    fun 最小有効パケットサイズのパースが正しい() {
+        // ppm=100, temp=25.2℃, humidity=55.0% の最小有効パケット（ちょうど6バイト）
+        val packet = makePacket(ppm = 100, tempX10 = 252, humX10 = 550)
+        assertEquals(6, packet.size)
+        val reading = packet.toSensorReading()
+        assertEquals(100f, reading.ppm)
+        assertEquals(25.2f, reading.temperature)
+        assertEquals(55.0f, reading.humidity)
+    }
+
+    @Test
+    fun 余分なバイトがあるパケットも正常にパースできる() {
+        // 7バイト以上でも先頭6バイトを使用して正常動作する
+        val packetWith7Bytes = byteArrayOf(0x00, 0x64, 0x00, 0xFC.toByte(), 0x02, 0x26, 0xFF.toByte())
+        assertEquals(7, packetWith7Bytes.size)
+        val reading = packetWith7Bytes.toSensorReading()
+        assertEquals(100f, reading.ppm)
+    }
+}

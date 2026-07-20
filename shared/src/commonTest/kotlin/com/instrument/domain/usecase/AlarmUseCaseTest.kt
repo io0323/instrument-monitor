@@ -163,4 +163,35 @@ class AlarmUseCaseTest {
             triggeredLevels
         )
     }
+
+    @Test
+    fun releaseはAlarmControllerのreleaseに委譲される() = runTest {
+        // AlarmUseCase.release() が AlarmController.release() を呼ぶことを確認
+        var releaseCount = 0
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) {}
+            override fun dismiss() {}
+            override fun release() { releaseCount++ }
+        }
+        val useCase = AlarmUseCase(fakeMonitor(), controller)
+
+        useCase.release()
+
+        assertEquals(1, releaseCount, "release() が AlarmController.release() を1回呼ぶべき")
+    }
+
+    @Test
+    fun dismiss後にreleaseを呼んでも例外が発生しない() = runTest {
+        // dismiss → release の順で呼んでも安全に動作することを確認
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) {}
+            override fun dismiss() {}
+            override fun release() {}
+        }
+        val useCase = AlarmUseCase(fakeMonitor(30f), controller)
+        useCase.observe().toList()
+
+        useCase.dismiss()
+        useCase.release() // 例外が発生しないことを確認
+    }
 }
