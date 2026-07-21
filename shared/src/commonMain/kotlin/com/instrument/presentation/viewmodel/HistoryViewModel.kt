@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toLocalDateTime
@@ -39,26 +41,7 @@ class HistoryViewModel(
 
     val readings: StateFlow<List<GeoTaggedReading>> =
         combine(logRepo.getAllReadings(), _dateFilter) { all, filter ->
-            val tz  = timeZone
-            val now = clock.now()
-            when (filter) {
-                DateFilter.ALL   -> all
-                DateFilter.TODAY -> {
-                    val startOfDay = now.toLocalDateTime(tz).date
-                        .atStartOfDayIn(tz).toEpochMilliseconds()
-                    all.filter { it.reading.timestamp >= startOfDay }
-                }
-                DateFilter.WEEK  -> {
-                    val cutoff = now.toEpochMilliseconds() - 7L * 24 * 60 * 60 * 1000
-                    all.filter { it.reading.timestamp >= cutoff }
-                }
-                DateFilter.MONTH -> {
-                    val local     = now.toLocalDateTime(tz)
-                    val startOfMonth = kotlinx.datetime.LocalDate(local.year, local.monthNumber, 1)
-                        .atStartOfDayIn(tz).toEpochMilliseconds()
-                    all.filter { it.reading.timestamp >= startOfMonth }
-                }
-            }
+            filterReadings(all, filter, clock.now(), timeZone)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun setDateFilter(filter: DateFilter) {
@@ -115,3 +98,32 @@ class HistoryViewModel(
         data class Error(val msg: String) : DeleteState()
     }
 }
+
+/**
+ * [DateFilter] に従って [all] をフィルタリングして返す純粋関数。
+ * ViewModel の外からも直接テストできるよう [internal] に公開する。
+ */
+internal fun filterReadings(
+    all: List<GeoTaggedReading>,
+    filter: DateFilter,
+    now: Instant,
+    timeZone: TimeZone,
+): List<GeoTaggedReading> = when (filter) {
+    DateFilter.ALL   -> all
+    DateFilter.TODAY -> {
+        val startOfDay = now.toLocalDateTime(timeZone).date
+            .atStartOfDayIn(timeZone).toEpochMilliseconds()
+        all.filter { it.reading.timestamp >= startOfDay }
+    }
+    DateFilter.WEEK  -> {
+        val cutoff = now.toEpochMilliseconds() - 7L * 24 * 60 * 60 * 1000
+        all.filter { it.reading.timestamp >= cutoff }
+    }
+    DateFilter.MONTH -> {
+        val local        = now.toLocalDateTime(timeZone)
+        val startOfMonth = LocalDate(local.year, local.monthNumber, 1)
+            .atStartOfDayIn(timeZone).toEpochMilliseconds()
+        all.filter { it.reading.timestamp >= startOfMonth }
+    }
+}
+

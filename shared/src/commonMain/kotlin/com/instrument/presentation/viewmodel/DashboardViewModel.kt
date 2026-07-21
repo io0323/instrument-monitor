@@ -74,7 +74,12 @@ class DashboardViewModel(
         monitorJob = viewModelScope.launch {
             alarmUseCase.observe().collect { status ->
                 // DANGER 以上は GPS 座標と紐付けて自動ロギング
-                launch { logMeasurement.invoke(status) }
+                // 失敗しても監視は継続し、エラーメッセージのみ更新する
+                launch {
+                    logMeasurement.invoke(status).onFailure { e ->
+                        _uiState.update { it.copy(errorMessage = "ログ保存に失敗しました: ${e.message}") }
+                    }
+                }
 
                 // WARNING 以上でアラームバナーを表示
                 val isAlarmActive = status.level >= GasLevel.WARNING
