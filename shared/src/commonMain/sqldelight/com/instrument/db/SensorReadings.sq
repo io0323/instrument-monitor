@@ -23,3 +23,8 @@ ORDER BY timestamp DESC;
 
 deleteOlderThan:
 DELETE FROM sensor_readings WHERE timestamp < ?;
+
+-- 直前の INSERT で自動採番された ID を取得する (SQLite の last_insert_rowid())
+lastInsertId:
+SELECT last_insert_rowid();
+
