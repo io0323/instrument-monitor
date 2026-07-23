@@ -21,7 +21,26 @@ data class GasDevice(
 // WARNING:  50  ≤ ppm < 200
 // DANGER:   200 ≤ ppm < 350
 // CRITICAL: ppm ≥ 350
-enum class GasLevel { SAFE, WARNING, DANGER, CRITICAL }
+enum class GasLevel {
+    SAFE, WARNING, DANGER, CRITICAL;
+
+    companion object {
+        /** WARNING レベルへ移行する閾値 (ppm) */
+        const val WARNING_THRESHOLD: Float  = 50f
+        /** DANGER レベルへ移行する閾値 (ppm) */
+        const val DANGER_THRESHOLD: Float   = 200f
+        /** CRITICAL レベルへ移行する閾値 (ppm) */
+        const val CRITICAL_THRESHOLD: Float = 350f
+
+        /** ppm 値から対応する [GasLevel] を返す */
+        fun fromPpm(ppm: Float): GasLevel = when {
+            ppm < WARNING_THRESHOLD  -> SAFE
+            ppm < DANGER_THRESHOLD   -> WARNING
+            ppm < CRITICAL_THRESHOLD -> DANGER
+            else                     -> CRITICAL
+        }
+    }
+}
 
 // 濃度トレンド
 enum class Trend { RISING, STABLE, FALLING }

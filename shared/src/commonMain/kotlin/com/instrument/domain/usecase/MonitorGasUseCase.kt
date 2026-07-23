@@ -2,7 +2,6 @@ package com.instrument.domain.usecase
 
 import com.instrument.domain.model.GasLevel
 import com.instrument.domain.model.GasStatus
-import com.instrument.domain.model.SensorReading
 import com.instrument.domain.model.Trend
 import com.instrument.domain.repository.BleRepository
 import kotlinx.coroutines.flow.Flow
@@ -23,14 +22,9 @@ class MonitorGasUseCase(private val repo: BleRepository) {
                     else        -> Trend.STABLE
                 }
             }
-            Pair(deque, GasStatus(reading, reading.toGasLevel(), trend))
+            // GasLevel.fromPpm() を使うことで閾値の定義を一元管理する
+            Pair(deque, GasStatus(reading, GasLevel.fromPpm(reading.ppm), trend))
         }
         .mapNotNull { it.second }
 }
 
-private fun SensorReading.toGasLevel(): GasLevel = when {
-    ppm < 50f   -> GasLevel.SAFE
-    ppm < 200f  -> GasLevel.WARNING
-    ppm < 350f  -> GasLevel.DANGER
-    else        -> GasLevel.CRITICAL
-}
