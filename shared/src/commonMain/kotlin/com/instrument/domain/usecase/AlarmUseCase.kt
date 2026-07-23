@@ -11,6 +11,8 @@ import kotlinx.datetime.Clock
 class AlarmUseCase(
     private val monitor: MonitorGasUseCase,
     private val controller: AlarmController,
+    // テスト時に固定クロックを差し込めるよう DI 可能にする
+    private val clock: Clock = Clock.System,
 ) {
     private var lastAlarmTime  = 0L
     private var lastAlarmLevel: GasLevel? = null
@@ -31,11 +33,16 @@ class AlarmUseCase(
             lastAlarmTime  = 0L
             return
         }
-        val now = Clock.System.now().toEpochMilliseconds()
-        // 同じレベルのアラームは30秒間隔で抑制
-        if (status.level == lastAlarmLevel && now - lastAlarmTime < 30_000L) return
+        val now = clock.now().toEpochMilliseconds()
+        // 同じレベルのアラームは SUPPRESS_INTERVAL_MS 間隔で抑制
+        if (status.level == lastAlarmLevel && now - lastAlarmTime < SUPPRESS_INTERVAL_MS) return
         controller.trigger(status.level)
         lastAlarmTime  = now
         lastAlarmLevel = status.level
+    }
+
+    companion object {
+        /** 同一レベルアラームを抑制する間隔 (ミリ秒) */
+        const val SUPPRESS_INTERVAL_MS = 30_000L
     }
 }

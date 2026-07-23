@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -17,6 +19,11 @@ import kotlin.test.assertTrue
 class AlarmUseCaseTest {
 
     private fun reading(ppm: Float) = SensorReading(ppm, 25f, 50f, 0L)
+
+    /** テスト用に [nowMs] を返す固定クロック */
+    private class FixedClock(var nowMs: Long) : Clock {
+        override fun now(): Instant = Instant.fromEpochMilliseconds(nowMs)
+    }
 
     private fun fakeMonitor(vararg ppms: Float): MonitorGasUseCase {
         val repo = object : BleRepository {
@@ -193,5 +200,96 @@ class AlarmUseCaseTest {
 
         useCase.dismiss()
         useCase.release() // 例外が発生しないことを確認
+    }
+
+    // ---- Clock DI を使った時間ベースの抑制テスト ----
+
+    @Test
+    fun 同一レベルはSUPPRESS_INTERVAL_MS未満では再発報しない() = runTest {
+        // 固定クロックで2回目を29秒後に設定 → 抑制されるべき
+        val fixedClock = FixedClock(0L)
+        val triggeredLevels = mutableListOf<GasLevel>()
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) { triggeredLevels += level }
+            override fun dismiss() {}
+            override fun release() {}
+        }
+
+        // 1回目 (t=0) と 2回目 (t=29秒) を同一レベルで送る
+        val readings = flowOf(
+            SensorReading(100f, 25f, 50f, 0L),
+            SensorReading(120f, 25f, 50f, 0L),
+        )
+        val repo = object : com.instrument.domain.repository.BleRepository {
+            override fun scanDevices(): Flow<List<GasDevice>> = flowOf(emptyList())
+            override fun connect(deviceId: String): Flow<BleConnectionState> = flowOf(BleConnectionState.Connected)
+            override fun observeSensorData(): Flow<SensorReading> = readings
+            override suspend fun disconnect() {}
+        }
+        val monitor = MonitorGasUseCase(repo)
+
+        // 1回目 trigger 後、clockを29秒後に設定 → 抑制される
+        var callCount = 0
+        val controllerWithClockAdv = object : AlarmController {
+            override fun trigger(level: GasLevel) {
+                triggeredLevels += level
+                callCount++
+                if (callCount == 1) {
+                    // 1回目発報後に29秒進める（SUPPRESS_INTERVAL_MS - 1ms）
+                    fixedClock.nowMs += AlarmUseCase.SUPPRESS_INTERVAL_MS - 1_000L
+                }
+            }
+            override fun dismiss() {}
+            override fun release() {}
+        }
+
+        AlarmUseCase(monitor, controllerWithClockAdv, fixedClock).observe().toList()
+
+        assertEquals(
+            listOf(GasLevel.WARNING),
+            triggeredLevels,
+            "29秒以内の同一レベルは抑制されるべき"
+        )
+    }
+
+    @Test
+    fun 同一レベルでもSUPPRESS_INTERVAL_MS以上経過すれば再発報する() = runTest {
+        // 固定クロックで2回目を30秒後（境界値）に設定 → 再発報すべき
+        val fixedClock = FixedClock(0L)
+        val triggeredLevels = mutableListOf<GasLevel>()
+
+        val readings = flowOf(
+            SensorReading(100f, 25f, 50f, 0L),
+            SensorReading(120f, 25f, 50f, 0L),
+        )
+        val repo = object : com.instrument.domain.repository.BleRepository {
+            override fun scanDevices(): Flow<List<GasDevice>> = flowOf(emptyList())
+            override fun connect(deviceId: String): Flow<BleConnectionState> = flowOf(BleConnectionState.Connected)
+            override fun observeSensorData(): Flow<SensorReading> = readings
+            override suspend fun disconnect() {}
+        }
+        val monitor = MonitorGasUseCase(repo)
+
+        var callCount = 0
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) {
+                triggeredLevels += level
+                callCount++
+                if (callCount == 1) {
+                    // 1回目発報後にちょうど SUPPRESS_INTERVAL_MS 経過させる
+                    fixedClock.nowMs += AlarmUseCase.SUPPRESS_INTERVAL_MS
+                }
+            }
+            override fun dismiss() {}
+            override fun release() {}
+        }
+
+        AlarmUseCase(monitor, controller, fixedClock).observe().toList()
+
+        assertEquals(
+            listOf(GasLevel.WARNING, GasLevel.WARNING),
+            triggeredLevels,
+            "ちょうど SUPPRESS_INTERVAL_MS 経過後の同一レベルは再発報すべき"
+        )
     }
 }
