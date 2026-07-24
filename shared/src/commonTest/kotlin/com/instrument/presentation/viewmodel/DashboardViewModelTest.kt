@@ -203,7 +203,41 @@ class DashboardViewModelTest {
         assertEquals(GasLevel.DANGER, vm.uiState.value.gasStatus?.level)
     }
 
-    private class Fixture {
+    @Test
+    fun logMeasurement失敗時にerrorMessageへ反映される() = runTest {
+        val fixture = Fixture(logSaveShouldFail = true)
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        // DANGER 以上でログ保存が試みられる
+        fixture.emitPpm(250f)
+        advanceUntilIdle()
+
+        assertTrue(
+            vm.uiState.value.errorMessage?.contains("ログ保存に失敗しました") == true,
+            "ログ保存失敗時は errorMessage にメッセージが設定されるべき。実際: ${vm.uiState.value.errorMessage}",
+        )
+    }
+
+    @Test
+    fun logMeasurement失敗後も次のセンサーデータを受信できる() = runTest {
+        val fixture = Fixture(logSaveShouldFail = true)
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        // DANGER でログ保存失敗
+        fixture.emitPpm(250f)
+        advanceUntilIdle()
+
+        // その後も SAFE データを受信できる（監視が止まっていない）
+        fixture.emitPpm(30f)
+        advanceUntilIdle()
+
+        assertEquals(30f, vm.uiState.value.gasStatus?.reading?.ppm)
+        assertEquals(GasLevel.SAFE, vm.uiState.value.gasStatus?.level)
+    }
+
+    private class Fixture(private val logSaveShouldFail: Boolean = false) {
         private val sensorFlow = MutableSharedFlow<SensorReading>(replay = 1, extraBufferCapacity = 128)
         private val connectionFlow = MutableSharedFlow<BleConnectionState>(replay = 1, extraBufferCapacity = 16)
         val savedReadings = MutableStateFlow<List<GeoTaggedReading>>(emptyList())
@@ -223,6 +257,7 @@ class DashboardViewModelTest {
 
         private val logRepo = object : LogRepository {
             override suspend fun save(reading: GeoTaggedReading): Result<Long> {
+                if (logSaveShouldFail) return Result.failure(RuntimeException("DB write error"))
                 savedReadings.value = savedReadings.value + reading
                 return Result.success(savedReadings.value.size.toLong())
             }

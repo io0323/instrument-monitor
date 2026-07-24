@@ -1,6 +1,8 @@
 package com.instrument.domain.usecase
 
 import com.instrument.data.ble.toSensorReading
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -102,4 +104,38 @@ class BleParserTest {
         val reading = packetWith7Bytes.toSensorReading()
         assertEquals(100f, reading.ppm)
     }
+
+    // --- Clock DI によるタイムスタンプ検証 ---
+
+    @Test
+    fun 固定ClockでタイムスタンプがDI値と一致する() {
+        val fixedEpochMs = 1_752_000_000_000L // 任意の固定値
+        val fixedClock = object : Clock {
+            override fun now(): Instant = Instant.fromEpochMilliseconds(fixedEpochMs)
+        }
+        val packet = makePacket(ppm = 100, tempX10 = 250, humX10 = 550)
+        val reading = packet.toSensorReading(clock = fixedClock)
+        assertEquals(fixedEpochMs, reading.timestamp, "clock から取得した epochMs がタイムスタンプに使われるべき")
+    }
+
+    @Test
+    fun デフォルトClockでタイムスタンプが現在時刻に近い() {
+        val before = Clock.System.now().toEpochMilliseconds()
+        val packet  = makePacket(ppm = 100, tempX10 = 250, humX10 = 550)
+        val reading = packet.toSensorReading() // デフォルト clock = Clock.System
+        val after   = Clock.System.now().toEpochMilliseconds()
+        assertTrue(reading.timestamp in before..after, "タイムスタンプは呼び出し前後の範囲内であるべき")
+    }
+
+    @Test
+    fun 異なるClockを渡すと異なるタイムスタンプになる() {
+        val clock1 = object : Clock { override fun now() = Instant.fromEpochMilliseconds(1_000L) }
+        val clock2 = object : Clock { override fun now() = Instant.fromEpochMilliseconds(2_000L) }
+        val packet = makePacket(ppm = 50, tempX10 = 200, humX10 = 600)
+        val r1 = packet.toSensorReading(clock1)
+        val r2 = packet.toSensorReading(clock2)
+        assertTrue(r1.timestamp < r2.timestamp, "clock1 < clock2 なのでタイムスタンプも r1 < r2 になるべき")
+    }
 }
+
+

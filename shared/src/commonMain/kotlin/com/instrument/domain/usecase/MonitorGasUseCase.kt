@@ -22,7 +22,9 @@ class MonitorGasUseCase(private val repo: BleRepository) {
                     else        -> Trend.STABLE
                 }
             }
+            // GasLevel.fromPpm() を使うことで閾値の定義を一元管理する
             Pair(deque, GasStatus(reading, GasLevel.fromPpm(reading.ppm), trend))
         }
         .mapNotNull { it.second }
 }
+

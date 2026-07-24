@@ -32,7 +32,7 @@ enum class GasLevel {
         /** CRITICAL レベルへ移行する閾値 (ppm) */
         const val CRITICAL_THRESHOLD: Float = 350f
 
-        /** ppm 値から対応する [GasLevel] を返す。閾値の定義を一元管理する。 */
+        /** ppm 値から対応する [GasLevel] を返す */
         fun fromPpm(ppm: Float): GasLevel = when {
             ppm < WARNING_THRESHOLD  -> SAFE
             ppm < DANGER_THRESHOLD   -> WARNING
