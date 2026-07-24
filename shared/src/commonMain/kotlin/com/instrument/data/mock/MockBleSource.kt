@@ -2,6 +2,7 @@ package com.instrument.data.mock
 
 import com.instrument.domain.model.GasDevice
 import com.instrument.domain.model.SensorReading
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -11,7 +12,10 @@ import kotlinx.datetime.Clock
 import kotlin.math.cos
 import kotlin.math.sin
 
-class MockBleSource {
+class MockBleSource(
+    // テスト時に StandardTestDispatcher を注入することで delay() を仮想時間で制御できる
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
+) {
 
     fun observeSensorData(): Flow<SensorReading> = flow {
         var t = 0.0
@@ -30,7 +34,7 @@ class MockBleSource {
             t += T_INCREMENT
             delay(EMIT_DELAY_MS)
         }
-    }.flowOn(Dispatchers.Default)
+    }.flowOn(dispatcher)
 
     fun scanDevices(): Flow<List<GasDevice>> = flow {
         emit(

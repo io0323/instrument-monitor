@@ -292,4 +292,45 @@ class AlarmUseCaseTest {
             "ちょうど SUPPRESS_INTERVAL_MS 経過後の同一レベルは再発報すべき"
         )
     }
+
+    @Test
+    fun クロック巻き戻し時は抑制されず即座に再発報する() = runTest {
+        // 時刻が巻き戻って elapsed が負値になった場合、アラームを抑制しないことを検証
+        val fixedClock = FixedClock(30_000L) // 30秒後に初期化
+        val triggeredLevels = mutableListOf<GasLevel>()
+
+        val readings = flowOf(
+            SensorReading(100f, 25f, 50f, 0L),
+            SensorReading(120f, 25f, 50f, 0L),
+        )
+        val repo = object : com.instrument.domain.repository.BleRepository {
+            override fun scanDevices(): Flow<List<GasDevice>> = flowOf(emptyList())
+            override fun connect(deviceId: String): Flow<BleConnectionState> = flowOf(BleConnectionState.Connected)
+            override fun observeSensorData(): Flow<SensorReading> = readings
+            override suspend fun disconnect() {}
+        }
+        val monitor = MonitorGasUseCase(repo)
+
+        var callCount = 0
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) {
+                triggeredLevels += level
+                callCount++
+                if (callCount == 1) {
+                    // 1回目発報後に時刻を過去に巻き戻す (elapsed が負値になる)
+                    fixedClock.nowMs -= 60_000L
+                }
+            }
+            override fun dismiss() {}
+            override fun release() {}
+        }
+
+        AlarmUseCase(monitor, controller, fixedClock).observe().toList()
+
+        assertEquals(
+            listOf(GasLevel.WARNING, GasLevel.WARNING),
+            triggeredLevels,
+            "時刻巻き戻し (elapsed < 0) 時は抑制されず再発報すべき"
+        )
+    }
 }

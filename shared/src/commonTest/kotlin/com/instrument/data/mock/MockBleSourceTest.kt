@@ -1,13 +1,16 @@
 package com.instrument.data.mock
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 // MockBleSource の定数・センサーデータ生成ロジックを検証するテスト
+@OptIn(ExperimentalCoroutinesApi::class)
 class MockBleSourceTest {
 
     // ---- companion object 定数の値を固定するテスト ----
@@ -85,7 +88,8 @@ class MockBleSourceTest {
 
     @Test
     fun 最初のN件は通常範囲の読み取り値() = runTest {
-        val source = MockBleSource()
+        // StandardTestDispatcher を注入することで delay() が仮想時間で動作し実時間待ちを回避
+        val source = MockBleSource(dispatcher = StandardTestDispatcher(testScheduler))
         // CRITICAL_INTERVAL-1 件取得 → すべて通常データのはず
         val readings = source.observeSensorData()
             .take(MockBleSource.CRITICAL_INTERVAL - 1)
@@ -101,7 +105,8 @@ class MockBleSourceTest {
 
     @Test
     fun CRITICAL_INTERVAL回目の読み取りはCRITICAL_PPM() = runTest {
-        val source = MockBleSource()
+        // StandardTestDispatcher を注入することで delay() が仮想時間で動作し実時間待ちを回避
+        val source = MockBleSource(dispatcher = StandardTestDispatcher(testScheduler))
         // ちょうど CRITICAL_INTERVAL 件目が CRITICAL_PPM になるはず
         val readings = source.observeSensorData()
             .take(MockBleSource.CRITICAL_INTERVAL)
@@ -116,7 +121,8 @@ class MockBleSourceTest {
 
     @Test
     fun センサー読み取り値のタイムスタンプは0より大きい() = runTest {
-        val source = MockBleSource()
+        // StandardTestDispatcher を注入することで delay() が仮想時間で動作し実時間待ちを回避
+        val source = MockBleSource(dispatcher = StandardTestDispatcher(testScheduler))
         val readings = source.observeSensorData().take(3).toList()
 
         readings.forEach { r ->
@@ -124,4 +130,3 @@ class MockBleSourceTest {
         }
     }
 }
-

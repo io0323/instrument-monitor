@@ -33,9 +33,11 @@ class AlarmUseCase(
             lastAlarmTime  = 0L
             return
         }
-        val now = clock.now().toEpochMilliseconds()
-        // 同じレベルのアラームは SUPPRESS_INTERVAL_MS 間隔で抑制
-        if (status.level == lastAlarmLevel && now - lastAlarmTime < SUPPRESS_INTERVAL_MS) return
+        val now     = clock.now().toEpochMilliseconds()
+        val elapsed = now - lastAlarmTime
+        // 同じレベルのアラームは SUPPRESS_INTERVAL_MS 間隔で抑制する。
+        // elapsed が負値 (時刻巻き戻し) の場合は抑制せず即座に再発報する。
+        if (status.level == lastAlarmLevel && elapsed in 0L..<SUPPRESS_INTERVAL_MS) return
         controller.trigger(status.level)
         lastAlarmTime  = now
         lastAlarmLevel = status.level
