@@ -272,9 +272,9 @@ fun SensorCard(label: String, value: String, modifier: Modifier = Modifier) {
 @Composable
 fun RealtimeChart(history: List<SensorReading>, modifier: Modifier = Modifier) {
     val thresholds = listOf(
-        50f  to GasLevel.SAFE,
-        200f to GasLevel.WARNING,
-        350f to GasLevel.DANGER,
+        GasLevel.WARNING_THRESHOLD  to GasLevel.SAFE,
+        GasLevel.DANGER_THRESHOLD   to GasLevel.WARNING,
+        GasLevel.CRITICAL_THRESHOLD to GasLevel.DANGER,
     )
     Canvas(modifier = modifier) {
         if (history.size < 2) return@Canvas

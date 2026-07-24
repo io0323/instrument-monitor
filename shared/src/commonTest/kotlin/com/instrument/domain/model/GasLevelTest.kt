@@ -2,6 +2,7 @@ package com.instrument.domain.model
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 // GasLevel.fromPpm() と閾値定数の直接ユニットテスト
 class GasLevelTest {
@@ -105,8 +106,3 @@ class GasLevelTest {
         assertEquals(4, GasLevel.entries.size, "GasLevel は SAFE/WARNING/DANGER/CRITICAL の4種類")
     }
 }
-
-// Enum の比較演算子を補助する拡張関数 (テスト内のみ)
-private operator fun GasLevel.compareTo(other: GasLevel): Int = this.ordinal.compareTo(other.ordinal)
-private fun assertTrue(value: Boolean, message: String) = kotlin.test.assertTrue(value, message)
-

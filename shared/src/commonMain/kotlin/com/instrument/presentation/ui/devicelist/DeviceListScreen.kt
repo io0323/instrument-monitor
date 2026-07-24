@@ -71,6 +71,16 @@ fun DeviceListScreen(onNavigateBack: () -> Unit) {
     }
 }
 
+/** RSSI 強度判定の閾値定数 (dBm)。RssiBar の強度区分と一致させること。 */
+object RssiThresholds {
+    /** 強 (3段): これより大きければ信号強 */
+    const val STRONG = -65
+    /** 中 (2段): これより大きければ信号中 */
+    const val MEDIUM = -75
+    /** 弱 (1段): これより大きければ信号弱 */
+    const val WEAK   = -85
+}
+
 @Composable
 private fun LoadingItem() {
     Card(modifier = Modifier.fillMaxWidth()) {
