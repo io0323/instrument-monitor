@@ -27,7 +27,9 @@ class SqlDelightLogRepository(driverFactory: DatabaseDriverFactory) : LogReposit
             gas_level   = reading.level.name,
             timestamp   = reading.reading.timestamp,
         )
-        db.sensorReadingsQueries.selectAll().executeAsList().lastOrNull()?.id ?: 0L
+        // selectAll は timestamp DESC 順のため lastOrNull() は最古レコードを返すバグがあった。
+        // SQLite の last_insert_rowid() で直前 INSERT の ID を正確に取得する。
+        db.sensorReadingsQueries.lastInsertId().executeAsOne()
     }
 
     override fun getAllReadings(): Flow<List<GeoTaggedReading>> =
