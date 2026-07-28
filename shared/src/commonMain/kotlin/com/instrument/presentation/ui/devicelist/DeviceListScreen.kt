@@ -22,18 +22,24 @@ import com.instrument.domain.repository.BleConnectionState
 import com.instrument.presentation.viewmodel.DeviceListViewModel
 import org.koin.compose.viewmodel.koinViewModel
 
+/**
+ * @param onNavigateBack 接続完了時は接続先デバイス名を引数に渡す。キャンセル時は null を渡す。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DeviceListScreen(onNavigateBack: () -> Unit) {
+fun DeviceListScreen(onNavigateBack: (String?) -> Unit) {
     val viewModel: DeviceListViewModel = koinViewModel()
     val devices by viewModel.scanResults.collectAsStateWithLifecycle()
     val isScanning by viewModel.isScanning.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
+    val selectedDevice by viewModel.selectedDevice.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) { viewModel.startScan() }
 
     LaunchedEffect(connectionState) {
-        if (connectionState == BleConnectionState.Connected) onNavigateBack()
+        if (connectionState == BleConnectionState.Connected) {
+            onNavigateBack(selectedDevice?.name)
+        }
     }
 
     Scaffold(
@@ -41,7 +47,7 @@ fun DeviceListScreen(onNavigateBack: () -> Unit) {
             TopAppBar(
                 title = { Text(if (isScanning) "スキャン中..." else "デバイス一覧") },
                 navigationIcon = {
-                    TextButton(onClick = { viewModel.stopScan(); onNavigateBack() }) { Text("←") }
+                    TextButton(onClick = { viewModel.stopScan(); onNavigateBack(null) }) { Text("←") }
                 },
                 actions = {
                     if (isScanning) {

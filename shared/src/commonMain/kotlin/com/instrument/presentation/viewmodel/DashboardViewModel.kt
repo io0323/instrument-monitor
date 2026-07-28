@@ -17,11 +17,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class DashboardUiState(
-    val connectionState: BleConnectionState = BleConnectionState.Disconnected,
-    val gasStatus      : GasStatus?         = null,
-    val isAlarmActive  : Boolean            = false,
-    val alarmLevel     : GasLevel?          = null,
-    val errorMessage   : String?            = null,
+    val connectionState    : BleConnectionState = BleConnectionState.Disconnected,
+    val connectedDeviceName: String?            = null,
+    val gasStatus          : GasStatus?         = null,
+    val isAlarmActive      : Boolean            = false,
+    val alarmLevel         : GasLevel?          = null,
+    val errorMessage       : String?            = null,
 )
 
 class DashboardViewModel(
@@ -40,17 +41,22 @@ class DashboardViewModel(
 
     init { startMockMode() }
 
-    fun connectDevice(deviceId: String) {
+    fun connectDevice(deviceId: String, deviceName: String? = null) {
         viewModelScope.launch {
             connectDevice.invoke(deviceId).collect { state ->
                 _uiState.update {
                     when (state) {
                         BleConnectionState.Scanning,
                         BleConnectionState.Connecting,
-                        BleConnectionState.Connected,
                         BleConnectionState.Disconnected -> it.copy(
                             connectionState = state,
                             errorMessage = null,
+                        )
+
+                        BleConnectionState.Connected -> it.copy(
+                            connectionState     = state,
+                            connectedDeviceName = deviceName,
+                            errorMessage        = null,
                         )
 
                         is BleConnectionState.Error -> it.copy(
@@ -64,8 +70,18 @@ class DashboardViewModel(
         }
     }
 
+    /** デバイス選択画面から戻った際に接続済みデバイス名を反映する */
+    fun onDeviceConnected(deviceName: String) {
+        _uiState.update { it.copy(connectedDeviceName = deviceName) }
+    }
+
     fun startMockMode() {
-        _uiState.update { it.copy(connectionState = BleConnectionState.Connected) }
+        _uiState.update {
+            it.copy(
+                connectionState     = BleConnectionState.Connected,
+                connectedDeviceName = "Mock Device",
+            )
+        }
         startMonitoring()
     }
 
