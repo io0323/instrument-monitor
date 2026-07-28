@@ -27,11 +27,11 @@ import kotlin.math.*
 
 @Composable
 fun DashboardScreen(
+    viewModel: DashboardViewModel = koinViewModel(),
     onNavigateToDeviceList: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToAlarm: () -> Unit,
 ) {
-    val viewModel: DashboardViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val history by viewModel.recentHistory.collectAsStateWithLifecycle()
 
@@ -43,7 +43,7 @@ fun DashboardScreen(
         ) {
             item {
                 ConnectionBar(
-                    deviceName = if (uiState.connectionState == BleConnectionState.Connected) "Mock Device" else null,
+                    deviceName = uiState.connectedDeviceName,
                     state = uiState.connectionState,
                     onScanClick = onNavigateToDeviceList,
                 )

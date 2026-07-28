@@ -26,6 +26,10 @@ class DeviceListViewModel(
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
 
+    /** selectDevice() で選択されたデバイス。接続完了後にデバイス名の取得に使用する */
+    private val _selectedDevice = MutableStateFlow<GasDevice?>(null)
+    val selectedDevice: StateFlow<GasDevice?> = _selectedDevice.asStateFlow()
+
     private var scanJob: Job? = null
 
     fun startScan() {
@@ -42,6 +46,7 @@ class DeviceListViewModel(
     }
 
     fun selectDevice(device: GasDevice) {
+        _selectedDevice.value = device
         viewModelScope.launch {
             connectDevice(device.id).collect { _connectionState.value = it }
         }

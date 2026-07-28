@@ -109,6 +109,53 @@ class DashboardViewModelTest {
     }
 
     @Test
+    fun startMockModeでconnectedDeviceNameがMockDeviceになる() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        assertEquals("Mock Device", vm.uiState.value.connectedDeviceName)
+    }
+
+    @Test
+    fun connectDeviceでConnected時にデバイス名が反映される() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        vm.connectDevice("target-device", "ガス検知器A")
+        fixture.emitConnectionState(BleConnectionState.Connected)
+        advanceUntilIdle()
+
+        assertEquals("ガス検知器A", vm.uiState.value.connectedDeviceName)
+    }
+
+    @Test
+    fun connectDeviceでdeviceNameがnullの場合connectedDeviceNameはnullになる() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        vm.connectDevice("target-device")
+        fixture.emitConnectionState(BleConnectionState.Connected)
+        advanceUntilIdle()
+
+        assertNull(vm.uiState.value.connectedDeviceName)
+    }
+
+    @Test
+    fun onDeviceConnectedでconnectedDeviceNameが更新される() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        vm.onDeviceConnected("センサーB")
+        advanceUntilIdle()
+
+        assertEquals("センサーB", vm.uiState.value.connectedDeviceName)
+    }
+
+    @Test
     fun connectDeviceでError時にerrorMessageへ反映される() = runTest {
         val fixture = Fixture()
         val vm = fixture.createViewModel()

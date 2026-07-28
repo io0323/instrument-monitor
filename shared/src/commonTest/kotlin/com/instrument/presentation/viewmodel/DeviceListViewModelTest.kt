@@ -20,6 +20,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -85,6 +86,40 @@ class DeviceListViewModelTest {
 
         assertEquals(BleConnectionState.Connected, vm.connectionState.value)
         assertEquals("TARGET", fixture.lastConnectedDeviceId)
+    }
+
+    @Test
+    fun selectDeviceでselectedDeviceが更新される() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+
+        val device = GasDevice(id = "TARGET", name = "ガス検知器X", rssi = -60)
+        vm.selectDevice(device)
+        advanceUntilIdle()
+
+        assertEquals(device, vm.selectedDevice.value)
+    }
+
+    @Test
+    fun 初期状態ではselectedDeviceがnull() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        assertNull(vm.selectedDevice.value)
+    }
+
+    @Test
+    fun selectDeviceを複数回呼ぶと最後に選択したデバイスが保持される() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+
+        vm.selectDevice(GasDevice(id = "A1", name = "デバイスA", rssi = -55))
+        vm.selectDevice(GasDevice(id = "A2", name = "デバイスB", rssi = -65))
+        advanceUntilIdle()
+
+        assertEquals("A2", vm.selectedDevice.value?.id)
+        assertEquals("デバイスB", vm.selectedDevice.value?.name)
     }
 
     @Test
