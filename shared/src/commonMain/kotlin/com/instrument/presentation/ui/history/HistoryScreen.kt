@@ -15,9 +15,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.instrument.domain.model.GeoTaggedReading
 import com.instrument.presentation.components.InstrumentMap
+import com.instrument.presentation.components.rememberCsvSaver
 import com.instrument.presentation.ui.theme.GasLevelColors
 import com.instrument.presentation.viewmodel.DateFilter
 import com.instrument.presentation.viewmodel.HistoryViewModel
+import kotlinx.coroutines.launch
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -29,7 +31,65 @@ fun HistoryScreen(onNavigateBack: () -> Unit) {
     val viewModel: HistoryViewModel = koinViewModel()
     val readings    by viewModel.readings.collectAsStateWithLifecycle()
     val dateFilter  by viewModel.dateFilter.collectAsStateWithLifecycle()
+    val exportState by viewModel.exportState.collectAsStateWithLifecycle()
+    val deleteState by viewModel.deleteState.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableIntStateOf(0) }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val csvSaver = rememberCsvSaver()
+
+    // エクスポート完了 / エラーを Snackbar で通知する
+    LaunchedEffect(exportState) {
+        when (val s = exportState) {
+            is HistoryViewModel.ExportState.Done  -> {
+                scope.launch { snackbarHostState.showSnackbar("CSV 保存完了: ${s.filePath}") }
+                viewModel.clearExportState()
+            }
+            is HistoryViewModel.ExportState.Error -> {
+                scope.launch { snackbarHostState.showSnackbar("エクスポート失敗: ${s.msg}") }
+                viewModel.clearExportState()
+            }
+            else -> Unit
+        }
+    }
+
+    // 削除完了 / エラーを Snackbar で通知する
+    LaunchedEffect(deleteState) {
+        when (val s = deleteState) {
+            is HistoryViewModel.DeleteState.Done  -> {
+                scope.launch { snackbarHostState.showSnackbar("30日以上前のログを削除しました") }
+                viewModel.clearDeleteState()
+            }
+            is HistoryViewModel.DeleteState.Error -> {
+                scope.launch { snackbarHostState.showSnackbar("削除失敗: ${s.msg}") }
+                viewModel.clearDeleteState()
+            }
+            else -> Unit
+        }
+    }
+
+    // 削除確認ダイアログ表示フラグ
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title   = { Text("古いログを削除") },
+            text    = { Text("30日以上前の計測記録を削除しますか？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    viewModel.deleteOldLogs()
+                }) { Text("削除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("キャンセル") }
+            },
+        )
+    }
+
+    val isExporting = exportState is HistoryViewModel.ExportState.Exporting
+    val isDeleting  = deleteState is HistoryViewModel.DeleteState.Deleting
 
     Scaffold(
         topBar = {
@@ -38,8 +98,32 @@ fun HistoryScreen(onNavigateBack: () -> Unit) {
                 navigationIcon = {
                     TextButton(onClick = onNavigateBack) { Text("←") }
                 },
+                actions = {
+                    // CSV エクスポートボタン
+                    if (isExporting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp).padding(end = 4.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        TextButton(
+                            onClick = { viewModel.exportCsv { csv -> csvSaver.save(csv) } },
+                            enabled = readings.isNotEmpty(),
+                        ) { Text("CSV") }
+                    }
+                    // 古いログ削除ボタン
+                    if (isDeleting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp).padding(end = 8.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        TextButton(onClick = { showDeleteConfirm = true }) { Text("削除") }
+                    }
+                },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // 日付フィルターチップ行
@@ -128,4 +212,3 @@ internal fun formatTimestamp(timestamp: Long): String {
 // GPS 座標を "lat,lng" 形式（小数点以下4桁）の文字列に変換する純粋関数
 internal fun formatCoordinate(lat: Double, lng: Double): String =
     "${"%.4f".format(lat)},${"%.4f".format(lng)}"
-
