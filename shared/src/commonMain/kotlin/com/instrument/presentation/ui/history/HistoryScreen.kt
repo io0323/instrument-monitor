@@ -169,6 +169,10 @@ private fun DateFilterRow(
 
 @Composable
 private fun ReadingsList(readings: List<GeoTaggedReading>) {
+    if (readings.isEmpty()) {
+        EmptyHistoryState()
+        return
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(8.dp),
@@ -195,6 +199,30 @@ private fun ReadingsList(readings: List<GeoTaggedReading>) {
                 )
             }
             HorizontalDivider()
+        }
+    }
+}
+
+@Composable
+private fun EmptyHistoryState() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "記録なし",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = "選択した期間に計測データがありません",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

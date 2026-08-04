@@ -267,6 +267,23 @@ class DashboardViewModelTest {
     }
 
     @Test
+    fun clearErrorMessageでerrorMessageがnullになる() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        vm.connectDevice("broken-device")
+        fixture.emitConnectionState(BleConnectionState.Error("接続に失敗しました"))
+        advanceUntilIdle()
+        assertEquals("接続に失敗しました", vm.uiState.value.errorMessage)
+
+        vm.clearErrorMessage()
+        advanceUntilIdle()
+
+        assertNull(vm.uiState.value.errorMessage)
+    }
+
+    @Test
     fun logMeasurement失敗後も次のセンサーデータを受信できる() = runTest {
         val fixture = Fixture(logSaveShouldFail = true)
         val vm = fixture.createViewModel()
