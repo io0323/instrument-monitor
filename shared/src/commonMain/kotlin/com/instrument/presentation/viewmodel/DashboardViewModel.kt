@@ -104,7 +104,6 @@ class DashboardViewModel(
                         gasStatus     = status,
                         isAlarmActive = isAlarmActive,
                         alarmLevel    = if (isAlarmActive) status.level else null,
-                        errorMessage  = null,
                     )
                 }
                 // 直近60件の読み取り履歴を保持
@@ -119,6 +118,11 @@ class DashboardViewModel(
     fun dismissAlarm() {
         alarmUseCase.dismiss()
         _uiState.update { it.copy(isAlarmActive = false, alarmLevel = null) }
+    }
+
+    /** Snackbar 表示後に呼び出してエラーメッセージをクリアする */
+    fun clearErrorMessage() {
+        _uiState.update { it.copy(errorMessage = null) }
     }
 
     override fun onCleared() {
