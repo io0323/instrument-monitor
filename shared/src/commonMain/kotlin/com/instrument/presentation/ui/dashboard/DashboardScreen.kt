@@ -35,56 +35,69 @@ fun DashboardScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val history by viewModel.recentHistory.collectAsStateWithLifecycle()
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            item {
-                ConnectionBar(
-                    deviceName = uiState.connectedDeviceName,
-                    state = uiState.connectionState,
-                    onScanClick = onNavigateToDeviceList,
-                )
-            }
-            item {
-                val status = uiState.gasStatus
-                GasGauge(
-                    ppm = status?.reading?.ppm ?: 0f,
-                    level = status?.level ?: GasLevel.SAFE,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp),
-                )
-            }
-            item {
-                val reading = uiState.gasStatus?.reading
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SensorCard("温度", "${reading?.temperature?.let { "%.1f".format(it) } ?: "--"}°C", Modifier.weight(1f))
-                    SensorCard("湿度", "${reading?.humidity?.let { "%.1f".format(it) } ?: "--"}%", Modifier.weight(1f))
-                }
-            }
-            item {
-                RealtimeChart(history = history, modifier = Modifier.fillMaxWidth().height(140.dp))
-            }
-            item {
-                TrendIndicator(status = uiState.gasStatus, history = history)
-            }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onNavigateToHistory, modifier = Modifier.weight(1f)) { Text("履歴") }
-                    OutlinedButton(onClick = onNavigateToAlarm, modifier = Modifier.weight(1f)) { Text("アラーム") }
-                }
-            }
-        }
+    val snackbarHostState = remember { SnackbarHostState() }
 
-        if (shouldShowAlarmOverlay(uiState.isAlarmActive, uiState.alarmLevel)) {
-            AlarmOverlay(
-                level = uiState.alarmLevel ?: GasLevel.WARNING,
-                ppm = uiState.gasStatus?.reading?.ppm ?: 0f,
-                onDismiss = { viewModel.dismissAlarm() },
-            )
+    // errorMessage が非 null になったら Snackbar を表示してクリアする
+    LaunchedEffect(uiState.errorMessage) {
+        val msg = uiState.errorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(msg)
+        viewModel.clearErrorMessage()
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item {
+                    ConnectionBar(
+                        deviceName = uiState.connectedDeviceName,
+                        state = uiState.connectionState,
+                        onScanClick = onNavigateToDeviceList,
+                    )
+                }
+                item {
+                    val status = uiState.gasStatus
+                    GasGauge(
+                        ppm = status?.reading?.ppm ?: 0f,
+                        level = status?.level ?: GasLevel.SAFE,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(220.dp),
+                    )
+                }
+                item {
+                    val reading = uiState.gasStatus?.reading
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        SensorCard("温度", "${reading?.temperature?.let { "%.1f".format(it) } ?: "--"}°C", Modifier.weight(1f))
+                        SensorCard("湿度", "${reading?.humidity?.let { "%.1f".format(it) } ?: "--"}%", Modifier.weight(1f))
+                    }
+                }
+                item {
+                    RealtimeChart(history = history, modifier = Modifier.fillMaxWidth().height(140.dp))
+                }
+                item {
+                    TrendIndicator(status = uiState.gasStatus, history = history)
+                }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = onNavigateToHistory, modifier = Modifier.weight(1f)) { Text("履歴") }
+                        OutlinedButton(onClick = onNavigateToAlarm, modifier = Modifier.weight(1f)) { Text("アラーム") }
+                    }
+                }
+            }
+
+            if (shouldShowAlarmOverlay(uiState.isAlarmActive, uiState.alarmLevel)) {
+                AlarmOverlay(
+                    level = uiState.alarmLevel ?: GasLevel.WARNING,
+                    ppm = uiState.gasStatus?.reading?.ppm ?: 0f,
+                    onDismiss = { viewModel.dismissAlarm() },
+                )
+            }
         }
     }
 }
