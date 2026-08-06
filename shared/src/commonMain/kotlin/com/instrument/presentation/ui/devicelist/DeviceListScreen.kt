@@ -45,7 +45,7 @@ fun DeviceListScreen(onNavigateBack: (String?) -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isScanning) "スキャン中..." else "デバイス一覧") },
+                title = { Text(deviceListTitle(isScanning)) },
                 navigationIcon = {
                     TextButton(onClick = { viewModel.stopScan(); onNavigateBack(null) }) { Text("←") }
                 },
@@ -59,20 +59,60 @@ fun DeviceListScreen(onNavigateBack: (String?) -> Unit) {
             )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (isScanning && devices.isEmpty()) {
-                items(3) { LoadingItem() }
-            } else {
-                items(devices) { device ->
-                    DeviceItem(device = device, onClick = { viewModel.selectDevice(device) })
+        when {
+            isScanning && devices.isEmpty() -> {
+                // スキャン中はシマーカードを表示する
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(3) { LoadingItem() }
                 }
             }
+            !isScanning && devices.isEmpty() -> {
+                // スキャン完了後にデバイスが見つからなかった場合は空状態を表示する
+                EmptyDeviceState(modifier = Modifier.fillMaxSize().padding(padding))
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(devices) { device ->
+                        DeviceItem(device = device, onClick = { viewModel.selectDevice(device) })
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** TopAppBar タイトル文字列を返す純粋関数。スキャン中かどうかで切り替える。 */
+internal fun deviceListTitle(isScanning: Boolean): String =
+    if (isScanning) "スキャン中..." else "デバイス一覧"
+
+@Composable
+private fun EmptyDeviceState(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "デバイスが見つかりません",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = "「再スキャン」を押して再度お試しください",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
