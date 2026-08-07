@@ -9,6 +9,8 @@ import com.instrument.domain.repository.BleConnectionState
 import com.instrument.domain.repository.BleRepository
 import com.instrument.domain.repository.GpsRepository
 import com.instrument.domain.repository.LogRepository
+import com.instrument.data.repository.InMemorySettingsRepository
+import com.instrument.domain.repository.SettingsRepository
 import com.instrument.domain.usecase.AlarmUseCase
 import com.instrument.domain.usecase.ConnectDeviceUseCase
 import com.instrument.domain.usecase.LogMeasurementUseCase
@@ -344,6 +346,7 @@ class DashboardViewModelTest {
             alarmUseCase = alarmUseCase,
             connectDevice = connectDeviceUseCase,
             logMeasurement = logMeasurementUseCase,
+            settingsRepo = InMemorySettingsRepository(),
         )
 
         suspend fun emitPpm(ppm: Float) {

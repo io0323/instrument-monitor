@@ -3,6 +3,7 @@ package com.instrument.domain.usecase
 import com.instrument.data.alarm.AlarmController
 import com.instrument.domain.model.GasLevel
 import com.instrument.domain.model.GasStatus
+import com.instrument.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.onEach
 import kotlinx.datetime.Clock
@@ -11,6 +12,8 @@ import kotlinx.datetime.Clock
 class AlarmUseCase(
     private val monitor: MonitorGasUseCase,
     private val controller: AlarmController,
+    // テスト・デフォルト用にインメモリ実装をフォールバックとして使用する
+    private val settingsRepo: SettingsRepository = SettingsRepository.default(),
     // テスト時に固定クロックを差し込めるよう DI 可能にする
     private val clock: Clock = Clock.System,
 ) {
@@ -35,9 +38,10 @@ class AlarmUseCase(
         }
         val now     = clock.now().toEpochMilliseconds()
         val elapsed = now - lastAlarmTime
-        // 同じレベルのアラームは SUPPRESS_INTERVAL_MS 間隔で抑制する。
+        val suppressMs = settingsRepo.settings.value.alarmSuppressIntervalSec * 1_000L
+        // 同じレベルのアラームは設定した間隔で抑制する。
         // elapsed が負値 (時刻巻き戻し) の場合は抑制せず即座に再発報する。
-        if (status.level == lastAlarmLevel && elapsed in 0L..<SUPPRESS_INTERVAL_MS) return
+        if (status.level == lastAlarmLevel && elapsed in 0L..<suppressMs) return
         controller.trigger(status.level)
         lastAlarmTime  = now
         lastAlarmLevel = status.level
