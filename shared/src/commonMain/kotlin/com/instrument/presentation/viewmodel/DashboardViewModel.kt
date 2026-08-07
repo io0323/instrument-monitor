@@ -6,6 +6,7 @@ import com.instrument.domain.model.GasLevel
 import com.instrument.domain.model.GasStatus
 import com.instrument.domain.model.SensorReading
 import com.instrument.domain.repository.BleConnectionState
+import com.instrument.domain.repository.SettingsRepository
 import com.instrument.domain.usecase.AlarmUseCase
 import com.instrument.domain.usecase.ConnectDeviceUseCase
 import com.instrument.domain.usecase.LogMeasurementUseCase
@@ -29,6 +30,7 @@ class DashboardViewModel(
     private val alarmUseCase   : AlarmUseCase,
     private val connectDevice  : ConnectDeviceUseCase,
     private val logMeasurement : LogMeasurementUseCase,
+    private val settingsRepo   : SettingsRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -91,9 +93,12 @@ class DashboardViewModel(
             alarmUseCase.observe().collect { status ->
                 // DANGER 以上は GPS 座標と紐付けて自動ロギング
                 // 失敗しても監視は継続し、エラーメッセージのみ更新する
-                launch {
-                    logMeasurement.invoke(status).onFailure { e ->
-                        _uiState.update { it.copy(errorMessage = "ログ保存に失敗しました: ${e.message}") }
+                // GPS ロギングが有効な場合のみ自動保存する
+                if (settingsRepo.settings.value.gpsLoggingEnabled) {
+                    launch {
+                        logMeasurement.invoke(status).onFailure { e ->
+                            _uiState.update { it.copy(errorMessage = "ログ保存に失敗しました: ${e.message}") }
+                        }
                     }
                 }
 
