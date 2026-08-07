@@ -11,6 +11,7 @@ import com.instrument.presentation.ui.alarm.AlarmScreen
 import com.instrument.presentation.ui.dashboard.DashboardScreen
 import com.instrument.presentation.ui.devicelist.DeviceListScreen
 import com.instrument.presentation.ui.history.HistoryScreen
+import com.instrument.presentation.ui.settings.SettingsScreen
 import com.instrument.presentation.viewmodel.DashboardViewModel
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -19,6 +20,7 @@ object Routes {
     const val DEVICE_LIST = "deviceList"
     const val ALARM       = "alarm"
     const val HISTORY     = "history"
+    const val SETTINGS    = "settings"
 }
 
 /** デバイス選択画面 → ダッシュボード間でデバイス名を渡すための savedStateHandle キー */
@@ -47,6 +49,7 @@ fun AppNavGraph() {
                 onNavigateToDeviceList = { navController.navigate(Routes.DEVICE_LIST) },
                 onNavigateToHistory    = { navController.navigate(Routes.HISTORY) },
                 onNavigateToAlarm      = { navController.navigate(Routes.ALARM) },
+                onNavigateToSettings   = { navController.navigate(Routes.SETTINGS) },
             )
         }
         composable(Routes.DEVICE_LIST) {
@@ -67,6 +70,9 @@ fun AppNavGraph() {
         }
         composable(Routes.HISTORY) {
             HistoryScreen(onNavigateBack = { navController.popBackStack() })
+        }
+        composable(Routes.SETTINGS) {
+            SettingsScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }
