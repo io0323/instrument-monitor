@@ -243,7 +243,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(monitor, controllerWithClockAdv, fixedClock).observe().toList()
+        AlarmUseCase(monitor, controllerWithClockAdv, clock = fixedClock).observe().toList()
 
         assertEquals(
             listOf(GasLevel.WARNING),
@@ -284,7 +284,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(monitor, controller, fixedClock).observe().toList()
+        AlarmUseCase(monitor, controller, clock = fixedClock).observe().toList()
 
         assertEquals(
             listOf(GasLevel.WARNING, GasLevel.WARNING),
@@ -325,7 +325,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(monitor, controller, fixedClock).observe().toList()
+        AlarmUseCase(monitor, controller, clock = fixedClock).observe().toList()
 
         assertEquals(
             listOf(GasLevel.WARNING, GasLevel.WARNING),
