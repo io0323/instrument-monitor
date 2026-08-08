@@ -39,10 +39,13 @@ kotlin {
             implementation(libs.datetime)
             implementation(libs.lifecycle.viewmodel)
             implementation(libs.lifecycle.compose)
+            implementation(libs.multiplatform.settings)
+            implementation(libs.multiplatform.settings.coroutines)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+            implementation(libs.multiplatform.settings.test)
         }
         androidMain.dependencies {
             implementation(libs.koin.android)

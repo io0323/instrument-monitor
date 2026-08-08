@@ -14,6 +14,7 @@ vico                    = "2.0.0-beta.2"
 osmdroid                = "6.1.20"
 accompanist-permissions = "0.36.0"
 shimmer                 = "1.3.0"
+multiplatform-settings  = "1.2.0"
 androidx-activity       = "1.9.3"
 navigation              = "2.8.4"
 
@@ -52,6 +53,10 @@ accompanist-permissions = { module = "com.google.accompanist:accompanist-permiss
 activity-compose        = { module = "androidx.activity:activity-compose",                       version.ref = "androidx-activity" }
 shimmer                 = { module = "com.valentinilk.shimmer:compose-shimmer",                   version.ref = "shimmer" }
 navigation-compose      = { module = "androidx.navigation:navigation-compose",                   version.ref = "navigation" }
+# multiplatform-settings (永続化キーバリューストア)
+multiplatform-settings  = { module = "com.russhwolf:multiplatform-settings",                     version.ref = "multiplatform-settings" }
+multiplatform-settings-coroutines = { module = "com.russhwolf:multiplatform-settings-coroutines", version.ref = "multiplatform-settings" }
+multiplatform-settings-test = { module = "com.russhwolf:multiplatform-settings-test",            version.ref = "multiplatform-settings" }
 
 [plugins]
 kotlin-multiplatform    = { id = "org.jetbrains.kotlin.multiplatform",           version.ref = "kotlin" }
