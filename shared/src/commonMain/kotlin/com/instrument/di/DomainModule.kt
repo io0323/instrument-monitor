@@ -1,7 +1,5 @@
 package com.instrument.di
 
-import com.instrument.data.repository.InMemorySettingsRepository
-import com.instrument.domain.repository.SettingsRepository
 import com.instrument.domain.usecase.AlarmUseCase
 import com.instrument.domain.usecase.ConnectDeviceUseCase
 import com.instrument.domain.usecase.DeleteOldLogsUseCase
@@ -16,8 +14,8 @@ import com.instrument.presentation.viewmodel.SettingsViewModel
 import org.koin.dsl.module
 
 val domainModule = module {
-    // 設定リポジトリはアプリ全体でシングルトンとして共有する
-    single<SettingsRepository> { InMemorySettingsRepository() }
+    // SettingsRepository は各プラットフォームの bleModule で登録する
+    // (Android: SharedPreferencesSettings / iOS: NSUserDefaultsSettings)
 
     factory { MonitorGasUseCase(get()) }
     factory { ConnectDeviceUseCase(get()) }
