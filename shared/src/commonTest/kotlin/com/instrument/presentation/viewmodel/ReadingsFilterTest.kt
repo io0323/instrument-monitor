@@ -11,8 +11,9 @@ import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toInstant
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
-// filterReadings() 純粋関数の境界値テスト
+// filterReadings() / filterByLevel() 純粋関数の境界値テスト
 class ReadingsFilterTest {
 
     private val tz = TimeZone.of("Asia/Tokyo")
@@ -95,6 +96,54 @@ class ReadingsFilterTest {
         )
         val result = filterReadings(all, DateFilter.MONTH, now, tz)
         assertEquals(listOf(20f), result.map { it.reading.ppm })
+    }
+
+    // ------- filterByLevel -------
+
+    private fun readingWithLevel(level: GasLevel, ppm: Float = 100f) = GeoTaggedReading(
+        reading = SensorReading(ppm = ppm, temperature = 25f, humidity = 50f, timestamp = 0L),
+        lat = 0.0, lng = 0.0, level = level,
+    )
+
+    @Test
+    fun filterByLevel_ALLは全件を返す() {
+        val list = listOf(
+            readingWithLevel(GasLevel.SAFE),
+            readingWithLevel(GasLevel.WARNING),
+            readingWithLevel(GasLevel.DANGER),
+            readingWithLevel(GasLevel.CRITICAL),
+        )
+        val result = filterByLevel(list, LevelFilter.ALL)
+        assertEquals(4, result.size)
+    }
+
+    @Test
+    fun filterByLevel_DANGER_PLUSはDANGERとCRITICALのみ返す() {
+        val list = listOf(
+            readingWithLevel(GasLevel.SAFE,     ppm = 10f),
+            readingWithLevel(GasLevel.WARNING,  ppm = 100f),
+            readingWithLevel(GasLevel.DANGER,   ppm = 250f),
+            readingWithLevel(GasLevel.CRITICAL, ppm = 380f),
+        )
+        val result = filterByLevel(list, LevelFilter.DANGER_PLUS)
+        assertEquals(2, result.size)
+        assertTrue(result.all { it.level == GasLevel.DANGER || it.level == GasLevel.CRITICAL })
+    }
+
+    @Test
+    fun filterByLevel_DANGER_PLUSはSAFEとWARNINGを除外する() {
+        val list = listOf(
+            readingWithLevel(GasLevel.SAFE),
+            readingWithLevel(GasLevel.WARNING),
+        )
+        val result = filterByLevel(list, LevelFilter.DANGER_PLUS)
+        assertEquals(0, result.size)
+    }
+
+    @Test
+    fun filterByLevel_空リストは空リストを返す() {
+        val result = filterByLevel(emptyList(), LevelFilter.DANGER_PLUS)
+        assertEquals(0, result.size)
     }
 
     @Test

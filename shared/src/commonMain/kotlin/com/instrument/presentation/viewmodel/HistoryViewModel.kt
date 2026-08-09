@@ -2,6 +2,7 @@ package com.instrument.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.instrument.domain.model.GasLevel
 import com.instrument.domain.model.GeoTaggedReading
 import com.instrument.domain.repository.LogRepository
 import com.instrument.domain.usecase.DeleteOldLogsUseCase
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -27,6 +29,19 @@ enum class DateFilter(val label: String) {
     MONTH("今月"),
 }
 
+// ガスレベルフィルターの種別
+enum class LevelFilter(val label: String) {
+    ALL("全レベル"),
+    DANGER_PLUS("DANGER以上"),
+}
+
+// フィルター適用後の統計情報
+data class ReadingStats(
+    val count: Int = 0,
+    val maxPpm: Float = 0f,
+    val avgPpm: Float = 0f,
+)
+
 // 計測履歴の表示・CSV書き出し・古いログ削除を担う ViewModel
 class HistoryViewModel(
     private val logRepo: LogRepository,
@@ -39,13 +54,33 @@ class HistoryViewModel(
     private val _dateFilter = MutableStateFlow(DateFilter.ALL)
     val dateFilter: StateFlow<DateFilter> = _dateFilter
 
+    private val _levelFilter = MutableStateFlow(LevelFilter.ALL)
+    val levelFilter: StateFlow<LevelFilter> = _levelFilter
+
     val readings: StateFlow<List<GeoTaggedReading>> =
-        combine(logRepo.getAllReadings(), _dateFilter) { all, filter ->
-            filterReadings(all, filter, clock.now(), timeZone)
+        combine(logRepo.getAllReadings(), _dateFilter, _levelFilter) { all, dateF, levelF ->
+            val dateFiltered = filterReadings(all, dateF, clock.now(), timeZone)
+            filterByLevel(dateFiltered, levelF)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // フィルター適用後の統計情報（件数・最大ppm・平均ppm）
+    val stats: StateFlow<ReadingStats> = readings
+        .map { list ->
+            if (list.isEmpty()) ReadingStats()
+            else ReadingStats(
+                count  = list.size,
+                maxPpm = list.maxOf { it.reading.ppm },
+                avgPpm = list.map { it.reading.ppm }.average().toFloat(),
+            )
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReadingStats())
 
     fun setDateFilter(filter: DateFilter) {
         _dateFilter.value = filter
+    }
+
+    fun setLevelFilter(filter: LevelFilter) {
+        _levelFilter.value = filter
     }
 
     private val _exportState = MutableStateFlow<ExportState>(ExportState.Idle)
@@ -96,6 +131,20 @@ class HistoryViewModel(
         object Deleting : DeleteState()
         object Done     : DeleteState()
         data class Error(val msg: String) : DeleteState()
+    }
+}
+
+/**
+ * [LevelFilter] に従って [readings] をフィルタリングして返す純粋関数。
+ * ViewModel の外からも直接テストできるよう [internal] に公開する。
+ */
+internal fun filterByLevel(
+    readings: List<GeoTaggedReading>,
+    filter: LevelFilter,
+): List<GeoTaggedReading> = when (filter) {
+    LevelFilter.ALL         -> readings
+    LevelFilter.DANGER_PLUS -> readings.filter {
+        it.level == GasLevel.DANGER || it.level == GasLevel.CRITICAL
     }
 }
 
