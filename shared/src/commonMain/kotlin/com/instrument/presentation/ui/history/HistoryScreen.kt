@@ -19,6 +19,8 @@ import com.instrument.presentation.components.rememberCsvSaver
 import com.instrument.presentation.ui.theme.GasLevelColors
 import com.instrument.presentation.viewmodel.DateFilter
 import com.instrument.presentation.viewmodel.HistoryViewModel
+import com.instrument.presentation.viewmodel.LevelFilter
+import com.instrument.presentation.viewmodel.ReadingStats
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -31,6 +33,8 @@ fun HistoryScreen(onNavigateBack: () -> Unit) {
     val viewModel: HistoryViewModel = koinViewModel()
     val readings    by viewModel.readings.collectAsStateWithLifecycle()
     val dateFilter  by viewModel.dateFilter.collectAsStateWithLifecycle()
+    val levelFilter by viewModel.levelFilter.collectAsStateWithLifecycle()
+    val stats       by viewModel.stats.collectAsStateWithLifecycle()
     val exportState by viewModel.exportState.collectAsStateWithLifecycle()
     val deleteState by viewModel.deleteState.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -126,10 +130,18 @@ fun HistoryScreen(onNavigateBack: () -> Unit) {
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // 統計サマリーカード
+            StatsCard(stats = stats)
+            HorizontalDivider()
             // 日付フィルターチップ行
             DateFilterRow(
                 selected = dateFilter,
                 onSelect = { viewModel.setDateFilter(it) },
+            )
+            // レベルフィルターチップ行
+            LevelFilterRow(
+                selected = levelFilter,
+                onSelect = { viewModel.setLevelFilter(it) },
             )
             HorizontalDivider()
             TabRow(selectedTabIndex = selectedTab) {
@@ -140,6 +152,60 @@ fun HistoryScreen(onNavigateBack: () -> Unit) {
                 0 -> ReadingsList(readings = readings)
                 1 -> InstrumentMap(readings = readings, modifier = Modifier.fillMaxSize())
             }
+        }
+    }
+}
+
+// 件数・最大ppm・平均ppm を表示するサマリーカード
+@Composable
+private fun StatsCard(stats: ReadingStats) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        StatItem(label = "件数", value = "${stats.count} 件", modifier = Modifier.weight(1f))
+        StatItem(label = "最大", value = "${stats.maxPpm.toInt()} ppm", modifier = Modifier.weight(1f))
+        StatItem(label = "平均", value = "${stats.avgPpm.toInt()} ppm", modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun StatItem(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text  = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text  = value,
+            style = MaterialTheme.typography.titleMedium,
+        )
+    }
+}
+
+// レベルフィルターチップ行（全レベル / DANGER以上）
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LevelFilterRow(
+    selected: LevelFilter,
+    onSelect: (LevelFilter) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        LevelFilter.entries.forEach { filter ->
+            FilterChip(
+                selected = filter == selected,
+                onClick  = { onSelect(filter) },
+                label    = { Text(filter.label) },
+            )
         }
     }
 }

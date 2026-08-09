@@ -299,6 +299,142 @@ class HistoryViewModelTest {
         assertEquals(HistoryViewModel.ExportState.Idle, vm.exportState.value)
     }
 
+    // ------- stats -------
+
+    @Test
+    fun データが空の場合statsはゼロを返す() = runTest {
+        val repo = FakeLogRepository(emptyList())
+        val vm = HistoryViewModel(repo)
+
+        val collector = backgroundScope.launch { vm.stats.collect { } }
+        advanceUntilIdle()
+
+        assertEquals(ReadingStats(count = 0, maxPpm = 0f, avgPpm = 0f), vm.stats.value)
+        collector.cancel()
+    }
+
+    @Test
+    fun statsはフィルター後の件数と最大ppmと平均ppmを返す() = runTest {
+        val repo = FakeLogRepository(
+            listOf(
+                reading(epochMs = 0L, ppm = 100f),
+                reading(epochMs = 1L, ppm = 200f),
+                reading(epochMs = 2L, ppm = 300f),
+            )
+        )
+        val vm = HistoryViewModel(repo)
+
+        val collector = backgroundScope.launch { vm.stats.collect { } }
+        advanceUntilIdle()
+
+        val stats = vm.stats.value
+        assertEquals(3, stats.count)
+        assertEquals(300f, stats.maxPpm)
+        assertEquals(200f, stats.avgPpm)
+        collector.cancel()
+    }
+
+    // ------- levelFilter -------
+
+    @Test
+    fun 初期levelFilterはALLである() = runTest {
+        val repo = FakeLogRepository(emptyList())
+        val vm = HistoryViewModel(repo)
+
+        assertEquals(LevelFilter.ALL, vm.levelFilter.value)
+    }
+
+    @Test
+    fun setLevelFilter_DANGER_PLUSはDANGER以上のみ返す() = runTest {
+        val repo = FakeLogRepository(
+            listOf(
+                GeoTaggedReading(
+                    reading = SensorReading(ppm = 10f, temperature = 25f, humidity = 50f, timestamp = 0L),
+                    lat = 0.0, lng = 0.0, level = GasLevel.SAFE,
+                ),
+                GeoTaggedReading(
+                    reading = SensorReading(ppm = 100f, temperature = 25f, humidity = 50f, timestamp = 1L),
+                    lat = 0.0, lng = 0.0, level = GasLevel.WARNING,
+                ),
+                GeoTaggedReading(
+                    reading = SensorReading(ppm = 250f, temperature = 25f, humidity = 50f, timestamp = 2L),
+                    lat = 0.0, lng = 0.0, level = GasLevel.DANGER,
+                ),
+                GeoTaggedReading(
+                    reading = SensorReading(ppm = 380f, temperature = 25f, humidity = 50f, timestamp = 3L),
+                    lat = 0.0, lng = 0.0, level = GasLevel.CRITICAL,
+                ),
+            )
+        )
+        val vm = HistoryViewModel(repo)
+
+        val collector = backgroundScope.launch { vm.readings.collect { } }
+        vm.setLevelFilter(LevelFilter.DANGER_PLUS)
+        advanceUntilIdle()
+
+        val result = vm.readings.value
+        assertEquals(2, result.size)
+        assertTrue(result.all { it.level == GasLevel.DANGER || it.level == GasLevel.CRITICAL })
+        collector.cancel()
+    }
+
+    @Test
+    fun setLevelFilter_ALLに戻すと全件が返る() = runTest {
+        val repo = FakeLogRepository(
+            listOf(
+                reading(epochMs = 0L, ppm = 10f),
+                reading(epochMs = 1L, ppm = 250f),
+            )
+        )
+        val vm = HistoryViewModel(repo)
+
+        val collector = backgroundScope.launch { vm.readings.collect { } }
+        vm.setLevelFilter(LevelFilter.DANGER_PLUS)
+        advanceUntilIdle()
+        vm.setLevelFilter(LevelFilter.ALL)
+        advanceUntilIdle()
+
+        assertEquals(2, vm.readings.value.size)
+        collector.cancel()
+    }
+
+    @Test
+    fun levelFilterとdateFilterは独立して適用される() = runTest {
+        val tz = TimeZone.of("UTC")
+        val now = Instant.parse("2026-07-11T00:00:00Z")
+        val cutoff = now.toEpochMilliseconds() - 7L * 24 * 60 * 60 * 1000
+        val repo = FakeLogRepository(
+            listOf(
+                // 7日以内 + DANGER → 残る
+                GeoTaggedReading(
+                    reading = SensorReading(ppm = 250f, temperature = 25f, humidity = 50f, timestamp = cutoff + 1000L),
+                    lat = 0.0, lng = 0.0, level = GasLevel.DANGER,
+                ),
+                // 7日以内 + SAFE → levelFilterで除外
+                GeoTaggedReading(
+                    reading = SensorReading(ppm = 10f, temperature = 25f, humidity = 50f, timestamp = cutoff + 2000L),
+                    lat = 0.0, lng = 0.0, level = GasLevel.SAFE,
+                ),
+                // 7日より前 + DANGER → dateFilterで除外
+                GeoTaggedReading(
+                    reading = SensorReading(ppm = 300f, temperature = 25f, humidity = 50f, timestamp = cutoff - 1000L),
+                    lat = 0.0, lng = 0.0, level = GasLevel.DANGER,
+                ),
+            )
+        )
+        val vm = HistoryViewModel(repo, clock = FixedClock(now), timeZone = tz)
+
+        val collector = backgroundScope.launch { vm.readings.collect { } }
+        vm.setDateFilter(DateFilter.WEEK)
+        vm.setLevelFilter(LevelFilter.DANGER_PLUS)
+        advanceUntilIdle()
+
+        val result = vm.readings.value
+        assertEquals(1, result.size)
+        assertEquals(250f, result.first().reading.ppm)
+        collector.cancel()
+    }
+
     private fun readingAt(date: LocalDate, hour: Int, minute: Int, tz: TimeZone, ppm: Float): GeoTaggedReading {
         val localDateTime = LocalDateTime(date.year, date.monthNumber, date.dayOfMonth, hour, minute)
         val epochMs = localDateTime.toInstant(tz).toEpochMilliseconds()
