@@ -20,6 +20,7 @@ class MonitorGasUseCaseTest {
     private fun fakeRepo(vararg ppms: Float): BleRepository = object : BleRepository {
         override fun scanDevices(): Flow<List<GasDevice>> = flowOf(emptyList())
         override fun connect(deviceId: String): Flow<BleConnectionState> = flowOf(BleConnectionState.Connected)
+        override fun reconnect(deviceId: String): Flow<Boolean> = flowOf(true)
         override fun observeSensorData(): Flow<SensorReading> = flowOf(*ppms.map { reading(it) }.toTypedArray())
         override suspend fun disconnect() {}
     }

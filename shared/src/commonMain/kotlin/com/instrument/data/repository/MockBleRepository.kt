@@ -8,6 +8,7 @@ import com.instrument.domain.repository.BleRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 
 class MockBleRepository(private val source: MockBleSource) : BleRepository {
 
@@ -17,6 +18,16 @@ class MockBleRepository(private val source: MockBleSource) : BleRepository {
         emit(BleConnectionState.Connecting)
         delay(500)
         emit(BleConnectionState.Connected)
+    }
+
+    /**
+     * モック再接続: 1〜2秒の遅延後に常に true (成功) を返す。
+     * 実機では AndroidBleDataSource / IosBleDataSource が実装する。
+     */
+    override fun reconnect(deviceId: String): Flow<Boolean> = flow {
+        // モックは 1.5 秒後に再接続成功とする
+        delay(1500)
+        emit(true)
     }
 
     override fun observeSensorData(): Flow<SensorReading> = source.observeSensorData()

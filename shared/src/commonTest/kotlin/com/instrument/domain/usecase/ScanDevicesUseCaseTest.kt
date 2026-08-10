@@ -25,6 +25,7 @@ class ScanDevicesUseCaseTest {
         override fun scanDevices(): Flow<List<GasDevice>> = flowOf(mockDevices)
         override fun connect(deviceId: String): Flow<BleConnectionState> =
             flowOf(BleConnectionState.Connected)
+        override fun reconnect(deviceId: String): Flow<Boolean> = flowOf(true)
         override fun observeSensorData(): Flow<SensorReading> = flowOf()
         override suspend fun disconnect() {}
     }
@@ -33,6 +34,7 @@ class ScanDevicesUseCaseTest {
         override fun scanDevices(): Flow<List<GasDevice>> = flowOf(emptyList())
         override fun connect(deviceId: String): Flow<BleConnectionState> =
             flowOf(BleConnectionState.Connected)
+        override fun reconnect(deviceId: String): Flow<Boolean> = flowOf(true)
         override fun observeSensorData(): Flow<SensorReading> = flowOf()
         override suspend fun disconnect() {}
     }

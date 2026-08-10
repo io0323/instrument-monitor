@@ -27,6 +27,11 @@ import com.instrument.presentation.viewmodel.DashboardViewModel
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.*
 
+// 再接続バナーの背景色 (警告系オレンジ)
+private val ReconnectBannerColor = Color(0xFFFFF3E0)
+// 再接続失敗バナーの背景色
+private val ReconnectFailedBannerColor = Color(0xFFFFEBEE)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
@@ -38,6 +43,7 @@ fun DashboardScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val history by viewModel.recentHistory.collectAsStateWithLifecycle()
+    val reconnectState by viewModel.reconnectState.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -72,6 +78,14 @@ fun DashboardScreen(
                         deviceName = uiState.connectedDeviceName,
                         state = uiState.connectionState,
                         onScanClick = onNavigateToDeviceList,
+                    )
+                }
+                // 再接続中または失敗時のバナーを接続バーとゲージの間に表示する
+                item {
+                    ReconnectBanner(
+                        reconnectState = reconnectState,
+                        onCancel = { viewModel.cancelReconnect() },
+                        onRetry = { viewModel.cancelReconnect() }, // キャンセルで Idle に戻してから自動トリガを待つ
                     )
                 }
                 item {
@@ -353,6 +367,76 @@ fun TrendIndicator(status: GasStatus?, history: List<SensorReading>) {
         Text(text = arrow, fontSize = 28.sp, color = color)
         Spacer(modifier = Modifier.width(8.dp))
         Text("直近5件平均: ${"%.1f".format(avg)} ppm", style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/**
+ * 再接続バナー: 再接続中は進捗とキャンセルボタン、失敗時はエラーと再試行ボタンを表示する。
+ * [ReconnectState.Idle] および [ReconnectState.Connected] の場合は何も表示しない。
+ */
+@Composable
+fun ReconnectBanner(
+    reconnectState: ReconnectState,
+    onCancel: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    when (reconnectState) {
+        is ReconnectState.Reconnecting -> {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = ReconnectBannerColor),
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = "再接続中... (${reconnectState.attempt}/${reconnectState.maxAttempts})",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = onCancel) {
+                            Text("キャンセル")
+                        }
+                    }
+                    LinearProgressIndicator(
+                        progress = { reconnectState.attempt.toFloat() / reconnectState.maxAttempts },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+
+        is ReconnectState.Failed -> {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = ReconnectFailedBannerColor),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    Text(
+                        text = "再接続に失敗しました",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = onRetry) {
+                        Text("再試行")
+                    }
+                }
+            }
+        }
+
+        // Idle・Connected 時はバナーを表示しない
+        is ReconnectState.Idle,
+        is ReconnectState.Connected -> Unit
     }
 }
 

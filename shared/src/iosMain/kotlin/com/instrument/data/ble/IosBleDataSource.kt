@@ -45,6 +45,23 @@ class IosBleDataSource {
         }
     }
 
+    /**
+     * 再接続: 指定デバイスへの接続を試みる。
+     * - 成功時は true を emit して完了する
+     * - 例外発生時は false を emit する
+     */
+    fun reconnect(deviceId: String): Flow<Boolean> = flow {
+        try {
+            val adv = Scanner { }.advertisements.first { it.identifier.toString() == deviceId }
+            val p = Peripheral(adv)
+            peripheral = p
+            p.connect()
+            emit(true)
+        } catch (e: Exception) {
+            emit(false)
+        }
+    }
+
     fun observeSensorData(): Flow<SensorReading> {
         val p = peripheral ?: return emptyFlow()
         return p.observe(characteristicOf(SERVICE_UUID, CHAR_UUID)).map { it.toSensorReading() }

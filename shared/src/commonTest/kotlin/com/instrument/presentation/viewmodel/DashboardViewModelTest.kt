@@ -4,6 +4,7 @@ import com.instrument.data.alarm.AlarmController
 import com.instrument.domain.model.GasDevice
 import com.instrument.domain.model.GasLevel
 import com.instrument.domain.model.GeoTaggedReading
+import com.instrument.domain.model.ReconnectState
 import com.instrument.domain.model.SensorReading
 import com.instrument.domain.repository.BleConnectionState
 import com.instrument.domain.repository.BleRepository
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -30,6 +32,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -303,7 +306,77 @@ class DashboardViewModelTest {
         assertEquals(GasLevel.SAFE, vm.uiState.value.gasStatus?.level)
     }
 
-    private class Fixture(private val logSaveShouldFail: Boolean = false) {
+    // ---- 自動再接続テスト ----
+
+    @Test
+    fun 切断時にreconnectStateがReconnectingに遷移する() = runTest {
+        // reconnect が常に失敗するフィクスチャで Reconnecting への遷移を確認する
+        val fixture = Fixture(reconnectAlwaysFails = true)
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        // 接続 → 切断の順にイベントを流す
+        vm.connectDevice("target-device", "ガス検知器A")
+        fixture.emitConnectionState(BleConnectionState.Connected)
+        advanceUntilIdle()
+
+        fixture.emitConnectionState(BleConnectionState.Disconnected)
+        // 再接続の delay を進める (最初の試行: 2^0 × 1000ms = 1000ms + バッファ)
+        advanceTimeBy(1_500L)
+
+        // reconnectState が Reconnecting になっているべき
+        assertIs<ReconnectState.Reconnecting>(vm.reconnectState.value, "切断後は Reconnecting に遷移するべき")
+    }
+
+    @Test
+    fun cancelReconnectでreconnectStateがIdleに戻る() = runTest {
+        val fixture = Fixture(reconnectAlwaysFails = true)
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        vm.connectDevice("target-device", "ガス検知器A")
+        fixture.emitConnectionState(BleConnectionState.Connected)
+        advanceUntilIdle()
+
+        fixture.emitConnectionState(BleConnectionState.Disconnected)
+        advanceTimeBy(1_500L)
+
+        // キャンセルを呼ぶと Idle に戻るべき
+        vm.cancelReconnect()
+        advanceUntilIdle()
+
+        assertIs<ReconnectState.Idle>(vm.reconnectState.value, "キャンセル後は Idle に戻るべき")
+    }
+
+    @Test
+    fun 再接続成功後にreconnectStateがIdleに戻る() = runTest {
+        // デフォルトの Fixture は reconnect が成功する (flowOf(true))
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        vm.connectDevice("target-device", "ガス検知器A")
+        fixture.emitConnectionState(BleConnectionState.Connected)
+        advanceUntilIdle()
+
+        // 切断して再接続フローを開始する
+        fixture.emitConnectionState(BleConnectionState.Disconnected)
+        // reconnect 内の delay (1s) を超えるまで時間を進める
+        advanceTimeBy(2_000L)
+        advanceUntilIdle()
+
+        // 再接続成功後は Idle または Connected のいずれかになっているべき
+        val state = vm.reconnectState.value
+        assertTrue(
+            state is ReconnectState.Idle || state is ReconnectState.Connected,
+            "再接続成功後は Idle か Connected になるべき。実際: $state",
+        )
+    }
+
+    private class Fixture(
+        private val logSaveShouldFail: Boolean = false,
+        private val reconnectAlwaysFails: Boolean = false,
+    ) {
         private val sensorFlow = MutableSharedFlow<SensorReading>(replay = 1, extraBufferCapacity = 128)
         private val connectionFlow = MutableSharedFlow<BleConnectionState>(replay = 1, extraBufferCapacity = 16)
         val savedReadings = MutableStateFlow<List<GeoTaggedReading>>(emptyList())
@@ -311,6 +384,8 @@ class DashboardViewModelTest {
         private val bleRepo = object : BleRepository {
             override fun scanDevices(): Flow<List<GasDevice>> = flowOf(emptyList())
             override fun connect(deviceId: String): Flow<BleConnectionState> = connectionFlow
+            // reconnectAlwaysFails フラグで再接続の成否を制御する
+            override fun reconnect(deviceId: String): Flow<Boolean> = flowOf(!reconnectAlwaysFails)
             override fun observeSensorData(): Flow<SensorReading> = sensorFlow
             override suspend fun disconnect() {}
         }
