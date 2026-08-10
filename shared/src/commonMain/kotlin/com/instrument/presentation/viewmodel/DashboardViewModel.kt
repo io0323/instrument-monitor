@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.instrument.domain.model.GasLevel
 import com.instrument.domain.model.GasStatus
+import com.instrument.domain.model.ReconnectState
 import com.instrument.domain.model.SensorReading
 import com.instrument.domain.repository.BleConnectionState
 import com.instrument.domain.repository.SettingsRepository
@@ -39,7 +40,16 @@ class DashboardViewModel(
     private val _recentHistory = MutableStateFlow<List<SensorReading>>(emptyList())
     val recentHistory: StateFlow<List<SensorReading>> = _recentHistory.asStateFlow()
 
+    // 再接続状態を外部へ公開する
+    private val _reconnectState = MutableStateFlow<ReconnectState>(ReconnectState.Idle)
+    val reconnectState: StateFlow<ReconnectState> = _reconnectState.asStateFlow()
+
+    // 再接続対象デバイスID (接続成功時に保持し、切断時に自動再接続へ使用する)
+    private var lastConnectedDeviceId: String? = null
+
     private var monitorJob: Job? = null
+    // 再接続ジョブ (キャンセル可能とするために保持する)
+    private var reconnectJob: Job? = null
 
     init { startMockMode() }
 
@@ -49,17 +59,30 @@ class DashboardViewModel(
                 _uiState.update {
                     when (state) {
                         BleConnectionState.Scanning,
-                        BleConnectionState.Connecting,
-                        BleConnectionState.Disconnected -> it.copy(
+                        BleConnectionState.Connecting -> it.copy(
                             connectionState = state,
                             errorMessage = null,
                         )
 
-                        BleConnectionState.Connected -> it.copy(
-                            connectionState     = state,
-                            connectedDeviceName = deviceName,
-                            errorMessage        = null,
-                        )
+                        BleConnectionState.Disconnected -> {
+                            // 切断を検知したら自動再接続を開始する
+                            triggerAutoReconnectIfNeeded()
+                            it.copy(
+                                connectionState = state,
+                                errorMessage = null,
+                            )
+                        }
+
+                        BleConnectionState.Connected -> {
+                            // 接続成功: デバイスIDを記憶し、再接続状態をリセットする
+                            lastConnectedDeviceId = deviceId
+                            _reconnectState.value = ReconnectState.Idle
+                            it.copy(
+                                connectionState     = state,
+                                connectedDeviceName = deviceName,
+                                errorMessage        = null,
+                            )
+                        }
 
                         is BleConnectionState.Error -> it.copy(
                             connectionState = state,
@@ -70,6 +93,39 @@ class DashboardViewModel(
                 if (state == BleConnectionState.Connected) startMonitoring()
             }
         }
+    }
+
+    /**
+     * 切断検知時に呼ばれる内部ヘルパー。
+     * 直前に接続していたデバイスIDがあれば自動再接続を開始する。
+     */
+    private fun triggerAutoReconnectIfNeeded() {
+        val deviceId = lastConnectedDeviceId ?: return
+        reconnectJob?.cancel()
+        reconnectJob = viewModelScope.launch {
+            connectDevice.reconnect(deviceId).collect { state ->
+                _reconnectState.value = state
+                when (state) {
+                    is ReconnectState.Connected -> {
+                        // 再接続成功: モニタリングを再開する
+                        _uiState.update { it.copy(connectionState = BleConnectionState.Connected) }
+                        startMonitoring()
+                    }
+                    is ReconnectState.Failed -> {
+                        // 再接続失敗: 状態を失敗のままにして UI へ通知する
+                    }
+                    is ReconnectState.Reconnecting -> { /* UI は reconnectState を監視する */ }
+                    is ReconnectState.Idle -> { /* 通常は到達しない */ }
+                }
+            }
+        }
+    }
+
+    /** 手動キャンセル: UI の「キャンセル」ボタンから呼ばれる */
+    fun cancelReconnect() {
+        reconnectJob?.cancel()
+        reconnectJob = null
+        _reconnectState.value = ReconnectState.Idle
     }
 
     /** デバイス選択画面から戻った際に接続済みデバイス名を反映する */
@@ -132,6 +188,7 @@ class DashboardViewModel(
 
     override fun onCleared() {
         monitorJob?.cancel()
+        reconnectJob?.cancel()
         // AlarmController が保持するリソース（音声・振動）を解放する
         alarmUseCase.release()
         super.onCleared()
