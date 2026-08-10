@@ -29,6 +29,7 @@ class AlarmUseCaseTest {
         val repo = object : BleRepository {
             override fun scanDevices(): Flow<List<GasDevice>> = flowOf(emptyList())
             override fun connect(deviceId: String): Flow<BleConnectionState> = flowOf(BleConnectionState.Connected)
+            override fun reconnect(deviceId: String): Flow<Boolean> = flowOf(true)
             override fun observeSensorData(): Flow<SensorReading> = flowOf(*ppms.map { reading(it) }.toTypedArray())
             override suspend fun disconnect() {}
         }
@@ -223,6 +224,7 @@ class AlarmUseCaseTest {
         val repo = object : com.instrument.domain.repository.BleRepository {
             override fun scanDevices(): Flow<List<GasDevice>> = flowOf(emptyList())
             override fun connect(deviceId: String): Flow<BleConnectionState> = flowOf(BleConnectionState.Connected)
+            override fun reconnect(deviceId: String): Flow<Boolean> = flowOf(true)
             override fun observeSensorData(): Flow<SensorReading> = readings
             override suspend fun disconnect() {}
         }
@@ -265,6 +267,7 @@ class AlarmUseCaseTest {
         val repo = object : com.instrument.domain.repository.BleRepository {
             override fun scanDevices(): Flow<List<GasDevice>> = flowOf(emptyList())
             override fun connect(deviceId: String): Flow<BleConnectionState> = flowOf(BleConnectionState.Connected)
+            override fun reconnect(deviceId: String): Flow<Boolean> = flowOf(true)
             override fun observeSensorData(): Flow<SensorReading> = readings
             override suspend fun disconnect() {}
         }
@@ -306,6 +309,7 @@ class AlarmUseCaseTest {
         val repo = object : com.instrument.domain.repository.BleRepository {
             override fun scanDevices(): Flow<List<GasDevice>> = flowOf(emptyList())
             override fun connect(deviceId: String): Flow<BleConnectionState> = flowOf(BleConnectionState.Connected)
+            override fun reconnect(deviceId: String): Flow<Boolean> = flowOf(true)
             override fun observeSensorData(): Flow<SensorReading> = readings
             override suspend fun disconnect() {}
         }

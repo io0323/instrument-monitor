@@ -209,6 +209,7 @@ class DeviceListViewModelTest {
                 return connectionFlow
             }
 
+            override fun reconnect(deviceId: String): Flow<Boolean> = flowOf(true)
             override fun observeSensorData(): Flow<SensorReading> = flowOf()
             override suspend fun disconnect() {}
         }
