@@ -73,6 +73,27 @@ class AndroidBleDataSource(private val context: Context) {
         }
     }.flowOn(Dispatchers.IO)
 
+    /**
+     * 再接続: 指定デバイスへの接続を試みる。
+     * - 成功時は true を emit して完了する
+     * - パーミッションがない場合・例外発生時は false を emit する
+     */
+    fun reconnect(deviceId: String): Flow<Boolean> = flow {
+        if (!hasPermissions()) {
+            emit(false)
+            return@flow
+        }
+        try {
+            val adv = Scanner { }.advertisements.first { it.identifier.toString() == deviceId }
+            val p = Peripheral(adv)
+            peripheral = p
+            p.connect()
+            emit(true)
+        } catch (e: Exception) {
+            emit(false)
+        }
+    }.flowOn(Dispatchers.IO)
+
     fun observeSensorData(): Flow<SensorReading> {
         val p = peripheral ?: return emptyFlow()
         return p.observe(characteristicOf(SERVICE_UUID, CHAR_UUID)).map { it.toSensorReading() }

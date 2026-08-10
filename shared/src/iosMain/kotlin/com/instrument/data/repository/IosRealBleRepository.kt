@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.Flow
 class IosRealBleRepository(private val dataSource: IosBleDataSource) : BleRepository {
     override fun scanDevices(): Flow<List<GasDevice>> = dataSource.scanDevices()
     override fun connect(deviceId: String): Flow<BleConnectionState> = dataSource.connect(deviceId)
+    // DataSource の再接続処理に委譲する
+    override fun reconnect(deviceId: String): Flow<Boolean> = dataSource.reconnect(deviceId)
     override fun observeSensorData(): Flow<SensorReading> = dataSource.observeSensorData()
     override suspend fun disconnect() = dataSource.disconnect()
 }
