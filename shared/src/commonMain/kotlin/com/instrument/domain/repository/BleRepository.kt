@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.Flow
 interface BleRepository {
     fun scanDevices(): Flow<List<GasDevice>>
     fun connect(deviceId: String): Flow<BleConnectionState>
+    // 切断後に同一デバイスへ再接続を試みる。成功時は true を emit する
+    fun reconnect(deviceId: String): Flow<Boolean>
     fun observeSensorData(): Flow<SensorReading>
     suspend fun disconnect()
 }

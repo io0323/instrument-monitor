@@ -52,6 +52,18 @@ data class GasStatus(
     val trend:   Trend
 )
 
+// BLE自動再接続の状態
+sealed class ReconnectState {
+    // 再接続待機中 (初期状態・接続成功後)
+    object Idle : ReconnectState()
+    // 再接続試行中
+    data class Reconnecting(val attempt: Int, val maxAttempts: Int) : ReconnectState()
+    // 最大試行回数超過による再接続失敗
+    object Failed : ReconnectState()
+    // 再接続成功
+    object Connected : ReconnectState()
+}
+
 // GPS位置情報付き計測記録
 data class GeoTaggedReading(
     val reading: SensorReading,
