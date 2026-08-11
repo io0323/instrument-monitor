@@ -7,6 +7,7 @@ import com.instrument.domain.usecase.ExportCsvUseCase
 import com.instrument.domain.usecase.LogMeasurementUseCase
 import com.instrument.domain.usecase.MonitorGasUseCase
 import com.instrument.domain.usecase.ScanDevicesUseCase
+import com.instrument.domain.usecase.SessionStatsUseCase
 import com.instrument.presentation.viewmodel.DashboardViewModel
 import com.instrument.presentation.viewmodel.DeviceListViewModel
 import com.instrument.presentation.viewmodel.HistoryViewModel
@@ -25,10 +26,12 @@ val domainModule = module {
     factory { DeleteOldLogsUseCase(get()) }
     // ExportCsvUseCase を Koin 管理下に置き、HistoryViewModel へ適切に注入する
     factory { ExportCsvUseCase(get()) }
+    // 依存なしの純粋ユースケース
+    factory { SessionStatsUseCase() }
 }
 
 val viewModelModule = module {
-    factory { DashboardViewModel(get(), get(), get(), get()) }
+    factory { DashboardViewModel(get(), get(), get(), get(), get()) }
     factory { DeviceListViewModel(get(), get()) }
     // ExportCsvUseCase・DeleteOldLogsUseCase を Koin から受け取るよう明示的に注入する
     factory { HistoryViewModel(get(), get(), get()) }

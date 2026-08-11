@@ -6,11 +6,13 @@ import com.instrument.domain.model.GasLevel
 import com.instrument.domain.model.GasStatus
 import com.instrument.domain.model.ReconnectState
 import com.instrument.domain.model.SensorReading
+import com.instrument.domain.model.SessionStats
 import com.instrument.domain.repository.BleConnectionState
 import com.instrument.domain.repository.SettingsRepository
 import com.instrument.domain.usecase.AlarmUseCase
 import com.instrument.domain.usecase.ConnectDeviceUseCase
 import com.instrument.domain.usecase.LogMeasurementUseCase
+import com.instrument.domain.usecase.SessionStatsUseCase
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,10 +30,11 @@ data class DashboardUiState(
 )
 
 class DashboardViewModel(
-    private val alarmUseCase   : AlarmUseCase,
-    private val connectDevice  : ConnectDeviceUseCase,
-    private val logMeasurement : LogMeasurementUseCase,
-    private val settingsRepo   : SettingsRepository,
+    private val alarmUseCase      : AlarmUseCase,
+    private val connectDevice     : ConnectDeviceUseCase,
+    private val logMeasurement    : LogMeasurementUseCase,
+    private val settingsRepo      : SettingsRepository,
+    private val sessionStatsUseCase: SessionStatsUseCase = SessionStatsUseCase(),
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -39,6 +42,9 @@ class DashboardViewModel(
 
     private val _recentHistory = MutableStateFlow<List<SensorReading>>(emptyList())
     val recentHistory: StateFlow<List<SensorReading>> = _recentHistory.asStateFlow()
+
+    private val _sessionStats = MutableStateFlow<SessionStats?>(null)
+    val sessionStats: StateFlow<SessionStats?> = _sessionStats.asStateFlow()
 
     // 再接続状態を外部へ公開する
     private val _reconnectState = MutableStateFlow<ReconnectState>(ReconnectState.Idle)
@@ -171,7 +177,10 @@ class DashboardViewModel(
                 val deque = ArrayDeque(_recentHistory.value)
                 if (deque.size >= 60) deque.removeFirst()
                 deque.addLast(status.reading)
-                _recentHistory.value = deque.toList()
+                val updated = deque.toList()
+                _recentHistory.value = updated
+                // 統計サマリをリアルタイムで更新する
+                _sessionStats.value = sessionStatsUseCase.compute(updated)
             }
         }
     }
