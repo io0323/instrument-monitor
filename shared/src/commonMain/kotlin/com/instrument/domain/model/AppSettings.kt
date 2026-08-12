@@ -8,6 +8,10 @@ data class AppSettings(
     val retentionDays: Int = 30,
     // 同一レベルアラームを抑制する間隔 (秒)
     val alarmSuppressIntervalSec: Int = 30,
+    // アラーム音を鳴らすかどうか
+    val soundEnabled: Boolean = true,
+    // アラーム振動を有効にするかどうか
+    val vibrationEnabled: Boolean = true,
 ) {
     companion object {
         /** ログ保持日数の選択肢 */

@@ -66,6 +66,22 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                     labelOf = { "${it}秒" },
                 )
             }
+            item {
+                AlarmToggle(
+                    label = "アラーム音",
+                    description = "ガス検知時に警告音を鳴らします",
+                    enabled = settings.soundEnabled,
+                    onToggle = viewModel::toggleSoundEnabled,
+                )
+            }
+            item {
+                AlarmToggle(
+                    label = "振動",
+                    description = "ガス検知時にデバイスを振動させます",
+                    enabled = settings.vibrationEnabled,
+                    onToggle = viewModel::toggleVibrationEnabled,
+                )
+            }
         }
     }
 }
@@ -81,6 +97,27 @@ private fun SettingsSectionHeader(title: String) {
         modifier = Modifier.padding(bottom = 4.dp),
     )
     HorizontalDivider()
+}
+
+// アラーム音・振動のような汎用 ON/OFF スイッチ
+@Composable
+private fun AlarmToggle(label: String, description: String, enabled: Boolean, onToggle: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = enabled, onCheckedChange = { onToggle() })
+    }
 }
 
 // GPS 自動ロギングの ON/OFF スイッチ
