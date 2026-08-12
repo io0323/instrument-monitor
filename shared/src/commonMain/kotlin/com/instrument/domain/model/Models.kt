@@ -72,3 +72,12 @@ data class GeoTaggedReading(
     val level:   GasLevel,
     val id:      Long = 0
 )
+
+// セッション中の統計サマリ
+data class SessionStats(
+    val minPpm:       Float,
+    val maxPpm:       Float,
+    val avgPpm:       Float,
+    val peakLevel:    GasLevel,
+    val readingCount: Int,
+)

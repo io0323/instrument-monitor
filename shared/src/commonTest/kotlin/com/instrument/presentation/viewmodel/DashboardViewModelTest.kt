@@ -27,12 +27,14 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import com.instrument.domain.model.SessionStats
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -304,6 +306,80 @@ class DashboardViewModelTest {
 
         assertEquals(30f, vm.uiState.value.gasStatus?.reading?.ppm)
         assertEquals(GasLevel.SAFE, vm.uiState.value.gasStatus?.level)
+    }
+
+    // ---- セッション統計テスト ----
+
+    @Test
+    fun 計測前はsessionStatsがnull() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        assertNull(vm.sessionStats.value)
+    }
+
+    @Test
+    fun 初回計測後にsessionStatsが生成される() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        fixture.emitPpm(100f)
+        advanceUntilIdle()
+
+        val stats = vm.sessionStats.value
+        assertNotNull(stats)
+        assertEquals(1, stats.readingCount)
+        assertEquals(100f, stats.minPpm)
+        assertEquals(100f, stats.maxPpm)
+        assertEquals(GasLevel.WARNING, stats.peakLevel)
+    }
+
+    @Test
+    fun 複数件計測後にminMaxAvgが正しく計算される() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        fixture.emitPpm(100f)
+        fixture.emitPpm(200f)
+        fixture.emitPpm(300f)
+        advanceUntilIdle()
+
+        val stats = vm.sessionStats.value
+        assertNotNull(stats)
+        assertEquals(100f, stats.minPpm)
+        assertEquals(300f, stats.maxPpm)
+        assertEquals(3, stats.readingCount)
+        assertEquals(GasLevel.DANGER, stats.peakLevel) // 300 ≥ 200, < 350
+    }
+
+    @Test
+    fun CRITICAL値を含む場合peakLevelがCRITICALになる() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        fixture.emitPpm(30f)
+        fixture.emitPpm(380f) // CRITICAL
+        advanceUntilIdle()
+
+        assertEquals(GasLevel.CRITICAL, vm.sessionStats.value?.peakLevel)
+    }
+
+    @Test
+    fun 最大件数超過時にsessionStatsのreadingCountが60に固定される() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        repeat(65) { fixture.emitPpm(it.toFloat()) }
+        advanceUntilIdle()
+
+        val stats = vm.sessionStats.value
+        assertNotNull(stats)
+        assertEquals(60, stats.readingCount)
     }
 
     // ---- 自動再接続テスト ----

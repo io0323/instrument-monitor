@@ -24,6 +24,7 @@ import com.instrument.domain.model.*
 import com.instrument.domain.repository.BleConnectionState
 import com.instrument.presentation.ui.theme.GasLevelColors
 import com.instrument.presentation.viewmodel.DashboardViewModel
+import com.instrument.domain.model.SessionStats
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.*
 
@@ -44,6 +45,7 @@ fun DashboardScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val history by viewModel.recentHistory.collectAsStateWithLifecycle()
     val reconnectState by viewModel.reconnectState.collectAsStateWithLifecycle()
+    val sessionStats by viewModel.sessionStats.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -110,6 +112,9 @@ fun DashboardScreen(
                 }
                 item {
                     TrendIndicator(status = uiState.gasStatus, history = history)
+                }
+                item {
+                    SessionStatsCard(stats = sessionStats, modifier = Modifier.fillMaxWidth())
                 }
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -437,6 +442,61 @@ fun ReconnectBanner(
         // Idle・Connected 時はバナーを表示しない
         is ReconnectState.Idle,
         is ReconnectState.Connected -> Unit
+    }
+}
+
+/**
+ * セッション中の統計サマリを表示するカード。
+ * [stats] が null の場合（計測開始前）は何も表示しない。
+ */
+@Composable
+fun SessionStatsCard(stats: SessionStats?, modifier: Modifier = Modifier) {
+    if (stats == null) return
+
+    val peakColor = GasLevelColors[stats.peakLevel] ?: Color(0xFF4CAF50)
+
+    Card(modifier = modifier) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("セッション統計", style = MaterialTheme.typography.titleSmall)
+                Surface(
+                    color  = peakColor.copy(alpha = 0.2f),
+                    shape  = MaterialTheme.shapes.small,
+                ) {
+                    Text(
+                        text     = "ピーク: ${stats.peakLevel.name}",
+                        color    = peakColor,
+                        style    = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SessionStatItem(label = "最小", value = "${stats.minPpm.toInt()} ppm", modifier = Modifier.weight(1f))
+                SessionStatItem(label = "平均", value = "${"%.1f".format(stats.avgPpm)} ppm", modifier = Modifier.weight(1f))
+                SessionStatItem(label = "最大", value = "${stats.maxPpm.toInt()} ppm", modifier = Modifier.weight(1f))
+            }
+            Text(
+                text  = "計測回数: ${stats.readingCount} 件",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SessionStatItem(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier            = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
     }
 }
 
