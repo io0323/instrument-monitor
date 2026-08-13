@@ -105,4 +105,49 @@ class GasLevelTest {
     fun GasLevelのentriesは4件() {
         assertEquals(4, GasLevel.entries.size, "GasLevel は SAFE/WARNING/DANGER/CRITICAL の4種類")
     }
+
+    // ---- カスタム閾値 fromPpm(ppm, warning, danger, critical) のテスト ----
+
+    @Test
+    fun カスタム閾値_100_200_300_で99fはSAFE() {
+        assertEquals(GasLevel.SAFE, GasLevel.fromPpm(99f, 100f, 200f, 300f))
+    }
+
+    @Test
+    fun カスタム閾値_100_200_300_で100fはWARNING() {
+        assertEquals(GasLevel.WARNING, GasLevel.fromPpm(100f, 100f, 200f, 300f))
+    }
+
+    @Test
+    fun カスタム閾値_100_200_300_で199fはWARNING() {
+        assertEquals(GasLevel.WARNING, GasLevel.fromPpm(199f, 100f, 200f, 300f))
+    }
+
+    @Test
+    fun カスタム閾値_100_200_300_で200fはDANGER() {
+        assertEquals(GasLevel.DANGER, GasLevel.fromPpm(200f, 100f, 200f, 300f))
+    }
+
+    @Test
+    fun カスタム閾値_100_200_300_で299fはDANGER() {
+        assertEquals(GasLevel.DANGER, GasLevel.fromPpm(299f, 100f, 200f, 300f))
+    }
+
+    @Test
+    fun カスタム閾値_100_200_300_で300fはCRITICAL() {
+        assertEquals(GasLevel.CRITICAL, GasLevel.fromPpm(300f, 100f, 200f, 300f))
+    }
+
+    @Test
+    fun カスタム閾値_引数なしのfromPpmはデフォルト閾値と同一結果を返す() {
+        // デフォルト閾値を明示的に渡した場合と同じ結果になることを確認する
+        val ppms = listOf(0f, 49f, 50f, 100f, 199f, 200f, 349f, 350f, 400f)
+        ppms.forEach { ppm ->
+            assertEquals(
+                GasLevel.fromPpm(ppm),
+                GasLevel.fromPpm(ppm, GasLevel.WARNING_THRESHOLD, GasLevel.DANGER_THRESHOLD, GasLevel.CRITICAL_THRESHOLD),
+                "ppm=$ppm でデフォルト閾値と 4 引数版の結果が一致すべき",
+            )
+        }
+    }
 }

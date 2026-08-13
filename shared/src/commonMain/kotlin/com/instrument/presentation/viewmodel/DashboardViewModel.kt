@@ -40,6 +40,9 @@ class DashboardViewModel(
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
+    // 設定をそのまま公開することで UI がカスタム閾値をゲージ描画に利用できるようにする
+    val settings = settingsRepo.settings
+
     private val _recentHistory = MutableStateFlow<List<SensorReading>>(emptyList())
     val recentHistory: StateFlow<List<SensorReading>> = _recentHistory.asStateFlow()
 
@@ -179,8 +182,8 @@ class DashboardViewModel(
                 deque.addLast(status.reading)
                 val updated = deque.toList()
                 _recentHistory.value = updated
-                // 統計サマリをリアルタイムで更新する
-                _sessionStats.value = sessionStatsUseCase.compute(updated)
+                // カスタム閾値を反映した統計サマリをリアルタイムで更新する
+                _sessionStats.value = sessionStatsUseCase.compute(updated, settingsRepo.settings.value)
             }
         }
     }

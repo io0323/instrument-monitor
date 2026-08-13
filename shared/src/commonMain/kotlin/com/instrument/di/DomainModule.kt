@@ -18,7 +18,8 @@ val domainModule = module {
     // SettingsRepository は各プラットフォームの bleModule で登録する
     // (Android: SharedPreferencesSettings / iOS: NSUserDefaultsSettings)
 
-    factory { MonitorGasUseCase(get()) }
+    // SettingsRepository を注入してカスタム閾値をリアルタイムに適用する
+    factory { MonitorGasUseCase(get(), get()) }
     factory { ConnectDeviceUseCase(get()) }
     factory { ScanDevicesUseCase(get()) }
     factory { LogMeasurementUseCase(get(), get()) }

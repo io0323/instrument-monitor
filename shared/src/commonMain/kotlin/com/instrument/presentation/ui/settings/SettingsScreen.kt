@@ -8,10 +8,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.instrument.domain.model.AppSettings
+import com.instrument.domain.model.GasLevel
+import com.instrument.presentation.ui.theme.GasLevelColors
 import com.instrument.presentation.viewmodel.SettingsViewModel
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -82,6 +85,47 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                     onToggle = viewModel::toggleVibrationEnabled,
                 )
             }
+
+            item { Spacer(modifier = Modifier.height(8.dp)) }
+            item { SettingsSectionHeader("アラーム閾値") }
+            item {
+                ThresholdSlider(
+                    label = "WARNING",
+                    description = "この値以上で注意アラームを発報します",
+                    currentValue = settings.warningThresholdPpm,
+                    range = AppSettings.WARNING_THRESHOLD_RANGE,
+                    levelColor = GasLevelColors[GasLevel.WARNING] ?: Color.Yellow,
+                    onValueChangeFinished = viewModel::setWarningThresholdSafe,
+                )
+            }
+            item {
+                ThresholdSlider(
+                    label = "DANGER",
+                    description = "この値以上で危険アラームを発報します",
+                    currentValue = settings.dangerThresholdPpm,
+                    range = AppSettings.DANGER_THRESHOLD_RANGE,
+                    levelColor = GasLevelColors[GasLevel.DANGER] ?: Color.Red,
+                    onValueChangeFinished = viewModel::setDangerThresholdSafe,
+                )
+            }
+            item {
+                ThresholdSlider(
+                    label = "CRITICAL",
+                    description = "この値以上で緊急アラームを発報します",
+                    currentValue = settings.criticalThresholdPpm,
+                    range = AppSettings.CRITICAL_THRESHOLD_RANGE,
+                    levelColor = GasLevelColors[GasLevel.CRITICAL] ?: Color.Red,
+                    onValueChangeFinished = viewModel::setCriticalThresholdSafe,
+                )
+            }
+            item {
+                TextButton(
+                    onClick = viewModel::resetThresholdsToDefault,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("デフォルト値に戻す (50 / 200 / 350 ppm)")
+                }
+            }
         }
     }
 }
@@ -138,6 +182,80 @@ private fun GpsLoggingToggle(enabled: Boolean, onToggle: () -> Unit) {
             )
         }
         Switch(checked = enabled, onCheckedChange = { onToggle() })
+    }
+}
+
+// アラーム閾値を ppm 単位のスライダーで調整するコンポーネント
+@Composable
+private fun ThresholdSlider(
+    label: String,
+    description: String,
+    currentValue: Int,
+    range: IntRange,
+    levelColor: Color,
+    onValueChangeFinished: (Int) -> Unit,
+) {
+    // スライダー操作中はローカル状態で表示し、離したときに ViewModel へ反映する
+    var sliderValue by remember(currentValue) { mutableFloatStateOf(currentValue.toFloat()) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = levelColor,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                text = "${sliderValue.toInt()} ppm",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = levelColor,
+            )
+        }
+        Slider(
+            value = sliderValue,
+            onValueChange = { sliderValue = it },
+            onValueChangeFinished = { onValueChangeFinished(sliderValue.toInt()) },
+            valueRange = range.first.toFloat()..range.last.toFloat(),
+            steps = (range.last - range.first) / 10 - 1,
+            colors = SliderDefaults.colors(
+                thumbColor = levelColor,
+                activeTrackColor = levelColor.copy(alpha = 0.8f),
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = "${range.first} ppm",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = "${range.last} ppm",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

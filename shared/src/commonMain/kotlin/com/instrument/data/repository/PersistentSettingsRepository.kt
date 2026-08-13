@@ -17,6 +17,10 @@ class PersistentSettingsRepository(private val store: Settings) : SettingsReposi
         const val ALARM_SUPPRESS_INTERVAL_SEC = "alarm_suppress_interval_sec"
         const val SOUND_ENABLED = "sound_enabled"
         const val VIBRATION_ENABLED = "vibration_enabled"
+        // アラーム閾値 (ppm)
+        const val WARNING_THRESHOLD_PPM = "warning_threshold_ppm"
+        const val DANGER_THRESHOLD_PPM = "danger_threshold_ppm"
+        const val CRITICAL_THRESHOLD_PPM = "critical_threshold_ppm"
     }
 
     // 起動時にストレージから読み込んだ初期値で StateFlow を生成する
@@ -31,6 +35,9 @@ class PersistentSettingsRepository(private val store: Settings) : SettingsReposi
         store.putInt(Keys.ALARM_SUPPRESS_INTERVAL_SEC, settings.alarmSuppressIntervalSec)
         store.putBoolean(Keys.SOUND_ENABLED, settings.soundEnabled)
         store.putBoolean(Keys.VIBRATION_ENABLED, settings.vibrationEnabled)
+        store.putInt(Keys.WARNING_THRESHOLD_PPM, settings.warningThresholdPpm)
+        store.putInt(Keys.DANGER_THRESHOLD_PPM, settings.dangerThresholdPpm)
+        store.putInt(Keys.CRITICAL_THRESHOLD_PPM, settings.criticalThresholdPpm)
         _settings.value = settings
     }
 
@@ -57,6 +64,18 @@ class PersistentSettingsRepository(private val store: Settings) : SettingsReposi
             vibrationEnabled = store.getBoolean(
                 key = Keys.VIBRATION_ENABLED,
                 defaultValue = defaults.vibrationEnabled,
+            ),
+            warningThresholdPpm = store.getInt(
+                key = Keys.WARNING_THRESHOLD_PPM,
+                defaultValue = defaults.warningThresholdPpm,
+            ),
+            dangerThresholdPpm = store.getInt(
+                key = Keys.DANGER_THRESHOLD_PPM,
+                defaultValue = defaults.dangerThresholdPpm,
+            ),
+            criticalThresholdPpm = store.getInt(
+                key = Keys.CRITICAL_THRESHOLD_PPM,
+                defaultValue = defaults.criticalThresholdPpm,
             ),
         )
     }

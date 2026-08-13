@@ -125,4 +125,118 @@ class SettingsViewModelTest {
             result,
         )
     }
+
+    // ---- アラーム閾値設定 ----
+
+    @Test
+    fun 初期状態のWARNING閾値は50ppm() {
+        val vm = buildViewModel()
+        assertEquals(50, vm.settings.value.warningThresholdPpm)
+    }
+
+    @Test
+    fun 初期状態のDANGER閾値は200ppm() {
+        val vm = buildViewModel()
+        assertEquals(200, vm.settings.value.dangerThresholdPpm)
+    }
+
+    @Test
+    fun 初期状態のCRITICAL閾値は350ppm() {
+        val vm = buildViewModel()
+        assertEquals(350, vm.settings.value.criticalThresholdPpm)
+    }
+
+    @Test
+    fun setWarningThresholdで有効な値に変更できる() {
+        val vm = buildViewModel()
+        vm.setWarningThreshold(80)
+        assertEquals(80, vm.settings.value.warningThresholdPpm)
+    }
+
+    @Test
+    fun setDangerThresholdで有効な値に変更できる() {
+        val vm = buildViewModel()
+        vm.setDangerThreshold(250)
+        assertEquals(250, vm.settings.value.dangerThresholdPpm)
+    }
+
+    @Test
+    fun setCriticalThresholdで有効な値に変更できる() {
+        val vm = buildViewModel()
+        vm.setCriticalThreshold(400)
+        assertEquals(400, vm.settings.value.criticalThresholdPpm)
+    }
+
+    @Test
+    fun setWarningThresholdがDANGER以上の場合はIllegalArgumentExceptionが発生する() {
+        val vm = buildViewModel()
+        var thrown = false
+        try {
+            vm.setWarningThreshold(200) // デフォルトDANGER == 200
+        } catch (e: IllegalArgumentException) {
+            thrown = true
+        }
+        assertTrue(thrown, "WARNING >= DANGER の場合は例外が発生すべき")
+    }
+
+    @Test
+    fun setDangerThresholdがWARNING以下の場合はIllegalArgumentExceptionが発生する() {
+        val vm = buildViewModel()
+        var thrown = false
+        try {
+            vm.setDangerThreshold(50) // デフォルトWARNING == 50
+        } catch (e: IllegalArgumentException) {
+            thrown = true
+        }
+        assertTrue(thrown, "DANGER <= WARNING の場合は例外が発生すべき")
+    }
+
+    @Test
+    fun setCriticalThresholdがDANGER以下の場合はIllegalArgumentExceptionが発生する() {
+        val vm = buildViewModel()
+        var thrown = false
+        try {
+            vm.setCriticalThreshold(200) // デフォルトDANGER == 200
+        } catch (e: IllegalArgumentException) {
+            thrown = true
+        }
+        assertTrue(thrown, "CRITICAL <= DANGER の場合は例外が発生すべき")
+    }
+
+    @Test
+    fun resetThresholdsToDefaultで全閾値がデフォルトに戻る() {
+        val vm = buildViewModel()
+        vm.setWarningThreshold(80)
+        vm.setDangerThreshold(250)
+        vm.setCriticalThreshold(400)
+        vm.resetThresholdsToDefault()
+
+        val result = vm.settings.value
+        assertEquals(50, result.warningThresholdPpm, "WARNING はデフォルト 50 に戻るべき")
+        assertEquals(200, result.dangerThresholdPpm, "DANGER はデフォルト 200 に戻るべき")
+        assertEquals(350, result.criticalThresholdPpm, "CRITICAL はデフォルト 350 に戻るべき")
+    }
+
+    @Test
+    fun setWarningThresholdSafeはDANGER以上でも自動調整して保存する() {
+        val vm = buildViewModel()
+        // まず DANGER を低めに設定してから WARNING を DANGER 以上に設定しようとする
+        vm.setDangerThreshold(80)            // DANGER = 80
+        vm.setWarningThresholdSafe(100)      // WARNING を 100 に (> DANGER=80 なので自動調整)
+        val result = vm.settings.value
+        assertEquals(100, result.warningThresholdPpm, "WARNING は 100 になるべき")
+        assertTrue(result.dangerThresholdPpm > 100, "DANGER は WARNING より大きくなるべき")
+        assertTrue(result.criticalThresholdPpm > result.dangerThresholdPpm, "CRITICAL は DANGER より大きくなるべき")
+    }
+
+    @Test
+    fun setCriticalThresholdSafeはDANGER以下でも自動調整して保存する() {
+        val vm = buildViewModel()
+        // CRITICAL を DANGER デフォルト (200) より小さい 100 に設定すると DANGER が自動調整される
+        vm.setCriticalThresholdSafe(100)
+        val result = vm.settings.value
+        assertEquals(100, result.criticalThresholdPpm, "CRITICAL は 100 になるべき")
+        assertTrue(result.dangerThresholdPpm < 100, "DANGER は CRITICAL より小さくなるべき")
+        assertTrue(result.warningThresholdPpm < result.dangerThresholdPpm, "WARNING は DANGER より小さくなるべき")
+    }
 }
