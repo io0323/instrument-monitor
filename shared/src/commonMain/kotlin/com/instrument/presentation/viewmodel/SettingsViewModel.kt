@@ -33,4 +33,14 @@ class SettingsViewModel(
         }
         settingsRepo.update(settings.value.copy(alarmSuppressIntervalSec = sec))
     }
+
+    /** アラーム音の ON/OFF を切り替える */
+    fun toggleSoundEnabled() {
+        settingsRepo.update(settings.value.copy(soundEnabled = !settings.value.soundEnabled))
+    }
+
+    /** アラーム振動の ON/OFF を切り替える */
+    fun toggleVibrationEnabled() {
+        settingsRepo.update(settings.value.copy(vibrationEnabled = !settings.value.vibrationEnabled))
+    }
 }

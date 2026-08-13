@@ -15,6 +15,8 @@ class PersistentSettingsRepository(private val store: Settings) : SettingsReposi
         const val GPS_LOGGING_ENABLED = "gps_logging_enabled"
         const val RETENTION_DAYS = "retention_days"
         const val ALARM_SUPPRESS_INTERVAL_SEC = "alarm_suppress_interval_sec"
+        const val SOUND_ENABLED = "sound_enabled"
+        const val VIBRATION_ENABLED = "vibration_enabled"
     }
 
     // 起動時にストレージから読み込んだ初期値で StateFlow を生成する
@@ -27,6 +29,8 @@ class PersistentSettingsRepository(private val store: Settings) : SettingsReposi
         store.putBoolean(Keys.GPS_LOGGING_ENABLED, settings.gpsLoggingEnabled)
         store.putInt(Keys.RETENTION_DAYS, settings.retentionDays)
         store.putInt(Keys.ALARM_SUPPRESS_INTERVAL_SEC, settings.alarmSuppressIntervalSec)
+        store.putBoolean(Keys.SOUND_ENABLED, settings.soundEnabled)
+        store.putBoolean(Keys.VIBRATION_ENABLED, settings.vibrationEnabled)
         _settings.value = settings
     }
 
@@ -45,6 +49,14 @@ class PersistentSettingsRepository(private val store: Settings) : SettingsReposi
             alarmSuppressIntervalSec = store.getInt(
                 key = Keys.ALARM_SUPPRESS_INTERVAL_SEC,
                 defaultValue = defaults.alarmSuppressIntervalSec,
+            ),
+            soundEnabled = store.getBoolean(
+                key = Keys.SOUND_ENABLED,
+                defaultValue = defaults.soundEnabled,
+            ),
+            vibrationEnabled = store.getBoolean(
+                key = Keys.VIBRATION_ENABLED,
+                defaultValue = defaults.vibrationEnabled,
             ),
         )
     }

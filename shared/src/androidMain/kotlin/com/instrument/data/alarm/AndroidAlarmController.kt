@@ -5,9 +5,14 @@ import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.*
 import com.instrument.domain.model.GasLevel
+import com.instrument.domain.repository.SettingsRepository
 
 // Android向けアラーム実装（振動 + ビープ音）
-class AndroidAlarmController(private val context: Context) : AlarmController {
+// settingsRepo を参照してアラーム音・振動の ON/OFF を動的に制御する
+class AndroidAlarmController(
+    private val context: Context,
+    private val settingsRepo: SettingsRepository,
+) : AlarmController {
 
     private val vibrator: Vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val vm = context.getSystemService(android.os.VibratorManager::class.java)
@@ -21,18 +26,19 @@ class AndroidAlarmController(private val context: Context) : AlarmController {
 
     override fun trigger(level: GasLevel) {
         dismiss()
+        val settings = settingsRepo.settings.value
         when (level) {
             GasLevel.WARNING  -> {
-                vibrate(longArrayOf(0, 100), -1)
-                playTone(ToneGenerator.TONE_PROP_BEEP, 500)
+                if (settings.vibrationEnabled) vibrate(longArrayOf(0, 100), -1)
+                if (settings.soundEnabled) playTone(ToneGenerator.TONE_PROP_BEEP, 500)
             }
             GasLevel.DANGER   -> {
-                vibrate(longArrayOf(0, 100, 100, 100, 100, 100), -1)
-                playTone(ToneGenerator.TONE_PROP_BEEP2, 1000)
+                if (settings.vibrationEnabled) vibrate(longArrayOf(0, 100, 100, 100, 100, 100), -1)
+                if (settings.soundEnabled) playTone(ToneGenerator.TONE_PROP_BEEP2, 1000)
             }
             GasLevel.CRITICAL -> {
-                vibrate(longArrayOf(0, 200, 100), 0)
-                playTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 3000)
+                if (settings.vibrationEnabled) vibrate(longArrayOf(0, 200, 100), 0)
+                if (settings.soundEnabled) playTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 3000)
             }
             GasLevel.SAFE -> Unit
         }

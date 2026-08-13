@@ -27,7 +27,8 @@ actual val bleModule: Module = module {
         if (BuildConfig.USE_MOCK) MockBleRepository(MockBleSource())
         else RealBleRepository(AndroidBleDataSource(androidContext()))
     }
-    single<AlarmController> { AndroidAlarmController(androidContext()) }
+    // SettingsRepository に依存するため get() で注入する (SettingsRepository より後に解決される)
+    single<AlarmController> { AndroidAlarmController(androidContext(), get()) }
     single<GpsRepository> { AndroidGpsSource(androidContext()) }
     single { DatabaseDriverFactory(androidContext()) }
     single<LogRepository> { SqlDelightLogRepository(get()) }
