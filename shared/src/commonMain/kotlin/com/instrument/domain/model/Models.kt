@@ -25,19 +25,38 @@ enum class GasLevel {
     SAFE, WARNING, DANGER, CRITICAL;
 
     companion object {
-        /** WARNING レベルへ移行する閾値 (ppm) */
+        /** WARNING レベルへ移行するデフォルト閾値 (ppm) */
         const val WARNING_THRESHOLD: Float  = 50f
-        /** DANGER レベルへ移行する閾値 (ppm) */
+        /** DANGER レベルへ移行するデフォルト閾値 (ppm) */
         const val DANGER_THRESHOLD: Float   = 200f
-        /** CRITICAL レベルへ移行する閾値 (ppm) */
+        /** CRITICAL レベルへ移行するデフォルト閾値 (ppm) */
         const val CRITICAL_THRESHOLD: Float = 350f
 
-        /** ppm 値から対応する [GasLevel] を返す */
-        fun fromPpm(ppm: Float): GasLevel = when {
-            ppm < WARNING_THRESHOLD  -> SAFE
-            ppm < DANGER_THRESHOLD   -> WARNING
-            ppm < CRITICAL_THRESHOLD -> DANGER
-            else                     -> CRITICAL
+        /**
+         * ppm 値からデフォルト閾値を使って対応する [GasLevel] を返す。
+         * カスタム閾値を使う場合は [fromPpm] の 4 引数版を使用すること。
+         */
+        fun fromPpm(ppm: Float): GasLevel = fromPpm(
+            ppm,
+            WARNING_THRESHOLD,
+            DANGER_THRESHOLD,
+            CRITICAL_THRESHOLD,
+        )
+
+        /**
+         * ppm 値とカスタム閾値から対応する [GasLevel] を返す。
+         * [warningPpm] < [dangerPpm] < [criticalPpm] の順序が保証されていること。
+         */
+        fun fromPpm(
+            ppm: Float,
+            warningPpm: Float,
+            dangerPpm: Float,
+            criticalPpm: Float,
+        ): GasLevel = when {
+            ppm < warningPpm  -> SAFE
+            ppm < dangerPpm   -> WARNING
+            ppm < criticalPpm -> DANGER
+            else              -> CRITICAL
         }
     }
 }

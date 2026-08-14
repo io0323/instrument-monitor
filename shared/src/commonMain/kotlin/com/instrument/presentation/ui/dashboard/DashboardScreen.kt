@@ -46,6 +46,8 @@ fun DashboardScreen(
     val history by viewModel.recentHistory.collectAsStateWithLifecycle()
     val reconnectState by viewModel.reconnectState.collectAsStateWithLifecycle()
     val sessionStats by viewModel.sessionStats.collectAsStateWithLifecycle()
+    // カスタム閾値をゲージ・チャートに反映するために settings を購読する
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -95,6 +97,9 @@ fun DashboardScreen(
                     GasGauge(
                         ppm = status?.reading?.ppm ?: 0f,
                         level = status?.level ?: GasLevel.SAFE,
+                        warningPpm = settings.warningThresholdPpm.toFloat(),
+                        dangerPpm = settings.dangerThresholdPpm.toFloat(),
+                        criticalPpm = settings.criticalThresholdPpm.toFloat(),
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(220.dp),
@@ -108,7 +113,13 @@ fun DashboardScreen(
                     }
                 }
                 item {
-                    RealtimeChart(history = history, modifier = Modifier.fillMaxWidth().height(140.dp))
+                    RealtimeChart(
+                        history = history,
+                        warningPpm = settings.warningThresholdPpm.toFloat(),
+                        dangerPpm = settings.dangerThresholdPpm.toFloat(),
+                        criticalPpm = settings.criticalThresholdPpm.toFloat(),
+                        modifier = Modifier.fillMaxWidth().height(140.dp),
+                    )
                 }
                 item {
                     TrendIndicator(status = uiState.gasStatus, history = history)
@@ -181,7 +192,14 @@ fun ConnectionBar(deviceName: String?, state: BleConnectionState, onScanClick: (
 }
 
 @Composable
-fun GasGauge(ppm: Float, level: GasLevel, modifier: Modifier = Modifier) {
+fun GasGauge(
+    ppm: Float,
+    level: GasLevel,
+    warningPpm: Float = GasLevel.WARNING_THRESHOLD,
+    dangerPpm: Float = GasLevel.DANGER_THRESHOLD,
+    criticalPpm: Float = GasLevel.CRITICAL_THRESHOLD,
+    modifier: Modifier = Modifier,
+) {
     val isCritical = level == GasLevel.CRITICAL
     val levelColor = GasLevelColors[level] ?: Color.Green
     val criticalColor = GasLevelColors[GasLevel.CRITICAL] ?: Color.Red
@@ -236,11 +254,12 @@ fun GasGauge(ppm: Float, level: GasLevel, modifier: Modifier = Modifier) {
 
             fun ppmToSweep(ppmVal: Float) = (ppmVal / maxPpm) * sweepTotal
 
+            // カスタム閾値に基づいてゲージ帯域を構築する
             val bands = listOf(
-                GasLevel.SAFE     to (0f to 50f),
-                GasLevel.WARNING  to (50f to 200f),
-                GasLevel.DANGER   to (200f to 350f),
-                GasLevel.CRITICAL to (350f to 500f),
+                GasLevel.SAFE     to (0f to warningPpm),
+                GasLevel.WARNING  to (warningPpm to dangerPpm),
+                GasLevel.DANGER   to (dangerPpm to criticalPpm),
+                GasLevel.CRITICAL to (criticalPpm to maxPpm),
             )
             bands.forEach { (lvl, range) ->
                 val sweepStart = startAngle + ppmToSweep(range.first)
@@ -316,11 +335,18 @@ fun SensorCard(label: String, value: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun RealtimeChart(history: List<SensorReading>, modifier: Modifier = Modifier) {
+fun RealtimeChart(
+    history: List<SensorReading>,
+    warningPpm: Float = GasLevel.WARNING_THRESHOLD,
+    dangerPpm: Float = GasLevel.DANGER_THRESHOLD,
+    criticalPpm: Float = GasLevel.CRITICAL_THRESHOLD,
+    modifier: Modifier = Modifier,
+) {
+    // カスタム閾値で横線を描画する (各ラインは境界の開始レベル色で示す)
     val thresholds = listOf(
-        GasLevel.WARNING_THRESHOLD  to GasLevel.SAFE,
-        GasLevel.DANGER_THRESHOLD   to GasLevel.WARNING,
-        GasLevel.CRITICAL_THRESHOLD to GasLevel.DANGER,
+        warningPpm  to GasLevel.SAFE,
+        dangerPpm   to GasLevel.WARNING,
+        criticalPpm to GasLevel.DANGER,
     )
     Canvas(modifier = modifier) {
         if (history.size < 2) return@Canvas

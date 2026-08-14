@@ -93,4 +93,50 @@ class PersistentSettingsRepositoryTest {
             assertEquals(interval, reloaded.settings.value.alarmSuppressIntervalSec)
         }
     }
+
+    @Test
+    fun `初回起動時は閾値デフォルト値が返される`() {
+        val defaults = AppSettings()
+        val actual = repository.settings.value
+
+        assertEquals(defaults.warningThresholdPpm, actual.warningThresholdPpm)
+        assertEquals(defaults.dangerThresholdPpm, actual.dangerThresholdPpm)
+        assertEquals(defaults.criticalThresholdPpm, actual.criticalThresholdPpm)
+    }
+
+    @Test
+    fun `warningThresholdPpm の変更が永続化される`() {
+        repository.update(repository.settings.value.copy(warningThresholdPpm = 80))
+        val reloaded = PersistentSettingsRepository(mapSettings)
+        assertEquals(80, reloaded.settings.value.warningThresholdPpm)
+    }
+
+    @Test
+    fun `dangerThresholdPpm の変更が永続化される`() {
+        repository.update(repository.settings.value.copy(dangerThresholdPpm = 250))
+        val reloaded = PersistentSettingsRepository(mapSettings)
+        assertEquals(250, reloaded.settings.value.dangerThresholdPpm)
+    }
+
+    @Test
+    fun `criticalThresholdPpm の変更が永続化される`() {
+        repository.update(repository.settings.value.copy(criticalThresholdPpm = 400))
+        val reloaded = PersistentSettingsRepository(mapSettings)
+        assertEquals(400, reloaded.settings.value.criticalThresholdPpm)
+    }
+
+    @Test
+    fun `3閾値を一括変更しても再起動後に正しく読み込まれる`() {
+        repository.update(
+            repository.settings.value.copy(
+                warningThresholdPpm  = 30,
+                dangerThresholdPpm   = 150,
+                criticalThresholdPpm = 300,
+            )
+        )
+        val reloaded = PersistentSettingsRepository(mapSettings)
+        assertEquals(30, reloaded.settings.value.warningThresholdPpm)
+        assertEquals(150, reloaded.settings.value.dangerThresholdPpm)
+        assertEquals(300, reloaded.settings.value.criticalThresholdPpm)
+    }
 }

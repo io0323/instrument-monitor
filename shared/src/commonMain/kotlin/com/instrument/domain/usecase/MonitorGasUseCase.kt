@@ -4,11 +4,16 @@ import com.instrument.domain.model.GasLevel
 import com.instrument.domain.model.GasStatus
 import com.instrument.domain.model.Trend
 import com.instrument.domain.repository.BleRepository
+import com.instrument.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.scan
 
-class MonitorGasUseCase(private val repo: BleRepository) {
+class MonitorGasUseCase(
+    private val repo: BleRepository,
+    // テストやデフォルト用途でも動作するようデフォルト実装を使用する
+    private val settingsRepo: SettingsRepository = SettingsRepository.default(),
+) {
 
     operator fun invoke(): Flow<GasStatus> = repo.observeSensorData()
         .scan(Pair(ArrayDeque<Float>(), null as GasStatus?)) { (deque, _), reading ->
@@ -22,8 +27,15 @@ class MonitorGasUseCase(private val repo: BleRepository) {
                     else        -> Trend.STABLE
                 }
             }
-            // GasLevel.fromPpm() を使うことで閾値の定義を一元管理する
-            Pair(deque, GasStatus(reading, GasLevel.fromPpm(reading.ppm), trend))
+            // 設定に保存されたカスタム閾値を毎回読み取り、動的に GasLevel を決定する
+            val settings = settingsRepo.settings.value
+            val level = GasLevel.fromPpm(
+                reading.ppm,
+                settings.warningThresholdPpm.toFloat(),
+                settings.dangerThresholdPpm.toFloat(),
+                settings.criticalThresholdPpm.toFloat(),
+            )
+            Pair(deque, GasStatus(reading, level, trend))
         }
         .mapNotNull { it.second }
 }
