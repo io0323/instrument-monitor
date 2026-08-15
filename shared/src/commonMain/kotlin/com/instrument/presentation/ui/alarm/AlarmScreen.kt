@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.instrument.domain.model.AppSettings
 import com.instrument.domain.model.GasLevel
 import com.instrument.presentation.ui.theme.GasLevelColors
 import com.instrument.presentation.viewmodel.DashboardViewModel
@@ -21,7 +22,8 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun AlarmScreen(onNavigateBack: () -> Unit) {
     val viewModel: DashboardViewModel = koinViewModel()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val uiState  by viewModel.uiState.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -61,8 +63,8 @@ fun AlarmScreen(onNavigateBack: () -> Unit) {
                 )
             }
 
-            // 閾値一覧
-            items(alarmThresholds) { threshold ->
+            // 閾値一覧 (AppSettings から動的に生成する)
+            items(buildAlarmThresholds(settings)) { threshold ->
                 AlarmThresholdRow(threshold)
             }
         }
@@ -124,18 +126,41 @@ private fun AlarmStatusCard(
 
 // ───── 閾値定義 ─────
 
-private data class AlarmThreshold(
+internal data class AlarmThreshold(
     val level     : GasLevel,
     val range     : String,
     val vibration : String,
     val sound     : String,
 )
 
-private val alarmThresholds = listOf(
-    AlarmThreshold(GasLevel.WARNING,  "50 ppm〜",  "単発100ms",   "短い警告音"),
-    AlarmThreshold(GasLevel.DANGER,   "200 ppm〜", "3回パターン", "警告音"),
-    AlarmThreshold(GasLevel.CRITICAL, "350 ppm〜", "連続",        "緊急アラーム (ループ)"),
-)
+/**
+ * AppSettings のカスタム閾値とアラーム設定から閾値表示リストを生成する。
+ * 音声・振動が無効の場合はその旨をラベルに反映する。
+ */
+internal fun buildAlarmThresholds(settings: AppSettings): List<AlarmThreshold> {
+    val soundSuffix     = if (settings.soundEnabled)     "" else " (OFF)"
+    val vibSuffix       = if (settings.vibrationEnabled) "" else " (OFF)"
+    return listOf(
+        AlarmThreshold(
+            level     = GasLevel.WARNING,
+            range     = "${settings.warningThresholdPpm} ppm〜",
+            vibration = "単発100ms$vibSuffix",
+            sound     = "短い警告音$soundSuffix",
+        ),
+        AlarmThreshold(
+            level     = GasLevel.DANGER,
+            range     = "${settings.dangerThresholdPpm} ppm〜",
+            vibration = "3回パターン$vibSuffix",
+            sound     = "警告音$soundSuffix",
+        ),
+        AlarmThreshold(
+            level     = GasLevel.CRITICAL,
+            range     = "${settings.criticalThresholdPpm} ppm〜",
+            vibration = "連続$vibSuffix",
+            sound     = "緊急アラーム (ループ)$soundSuffix",
+        ),
+    )
+}
 
 // ───── 閾値行コンポーネント ─────
 
