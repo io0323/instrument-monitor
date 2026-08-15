@@ -3,9 +3,11 @@ package com.instrument.presentation.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.instrument.presentation.ui.alarm.AlarmScreen
 import com.instrument.presentation.ui.dashboard.DashboardScreen
@@ -26,10 +28,34 @@ object Routes {
 /** デバイス選択画面 → ダッシュボード間でデバイス名を渡すための savedStateHandle キー */
 private const val KEY_CONNECTED_DEVICE_NAME = "connected_device_name"
 
+/**
+ * アプリ全体のナビゲーショングラフ。
+ *
+ * @param pendingDeepLink    通知タップなどで指定された遷移先ルート。null なら通常のスタート画面へ。
+ * @param onDeepLinkConsumed ディープリンクを処理した後に呼び出すコールバック。呼び出し元で状態をリセットする。
+ */
 @Composable
-fun AppNavGraph() {
+fun AppNavGraph(
+    pendingDeepLink: String? = null,
+    onDeepLinkConsumed: () -> Unit = {},
+) {
     val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = Routes.DASHBOARD) {
+
+    // コールドスタート時は最初の pendingDeepLink を startDestination として適用する
+    val startDestination = remember { pendingDeepLink ?: Routes.DASHBOARD }
+
+    // ホットスタート (onNewIntent) など、グラフ構築後にディープリンクが来た場合に遷移する
+    val currentRoute by navController.currentBackStackEntryAsState()
+    LaunchedEffect(pendingDeepLink) {
+        pendingDeepLink?.let { route ->
+            if (currentRoute?.destination?.route != route) {
+                navController.navigate(route) { launchSingleTop = true }
+            }
+            onDeepLinkConsumed()
+        }
+    }
+
+    NavHost(navController = navController, startDestination = startDestination) {
         composable(Routes.DASHBOARD) { entry ->
             val vm: DashboardViewModel = koinViewModel()
 

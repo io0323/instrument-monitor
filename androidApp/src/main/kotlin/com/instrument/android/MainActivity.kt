@@ -1,18 +1,27 @@
 package com.instrument.android
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import com.instrument.android.notification.NotificationHelper
 import com.instrument.android.service.GasMonitorService
 import com.instrument.presentation.ui.AppNavGraph
 import com.instrument.presentation.ui.theme.InstrumentTheme
 
 class MainActivity : ComponentActivity() {
+
+    // 通知タップなどで渡されるディープリンク先ルート。
+    // Compose state として持つことで setContent 内の再コンポーズをトリガーできる
+    private var pendingDeepLink by mutableStateOf<String?>(null)
 
     // Android 13 以上で通知権限をリクエストするランチャー
     private val notificationPermissionLauncher = registerForActivityResult(
@@ -23,12 +32,24 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // コールドスタート時の通知 Intent を処理する
+        pendingDeepLink = intent.getStringExtra(NotificationHelper.EXTRA_DEEP_LINK)
         setContent {
             InstrumentTheme {
-                AppNavGraph()
+                AppNavGraph(
+                    pendingDeepLink    = pendingDeepLink,
+                    onDeepLinkConsumed = { pendingDeepLink = null },
+                )
             }
         }
         requestNotificationPermissionAndStartService()
+    }
+
+    // アプリが前面にある状態で通知をタップしたとき (ホットスタート) に呼ばれる
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingDeepLink = intent.getStringExtra(NotificationHelper.EXTRA_DEEP_LINK)
     }
 
     override fun onDestroy() {

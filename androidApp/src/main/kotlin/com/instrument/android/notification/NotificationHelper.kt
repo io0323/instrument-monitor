@@ -9,6 +9,7 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.instrument.android.MainActivity
 import com.instrument.domain.model.GasLevel
+import com.instrument.presentation.ui.Routes
 
 // バックグラウンド通知の構築・チャンネル管理を担当するヘルパー
 class NotificationHelper(private val context: Context) {
@@ -18,6 +19,9 @@ class NotificationHelper(private val context: Context) {
         const val CHANNEL_ID_ALERT          = "gas_alert"
         const val NOTIFICATION_ID_FOREGROUND = 100
         const val NOTIFICATION_ID_ALERT      = 101
+
+        // 通知タップ時の遷移先を MainActivity に伝えるための Intent extra キー
+        const val EXTRA_DEEP_LINK = "navigate_to"
     }
 
     private val notificationManager =
@@ -75,14 +79,18 @@ class NotificationHelper(private val context: Context) {
     }
 
     // DANGER / CRITICAL 検知時のヘッズアップ通知を発火する
+    // 通知をタップすると AlarmScreen へ直接遷移する
     fun showAlertNotification(ppm: Float, level: GasLevel) {
         val tapIntent = PendingIntent.getActivity(
             context,
             1,
             Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+                // タップ時に AlarmScreen へディープリンクさせる extra を付与する
+                putExtra(EXTRA_DEEP_LINK, Routes.ALARM)
             },
-            PendingIntent.FLAG_IMMUTABLE,
+            // 既存の PendingIntent があれば extra を更新する
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID_ALERT)
