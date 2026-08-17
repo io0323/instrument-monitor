@@ -14,6 +14,7 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AlarmUseCaseTest {
@@ -201,6 +202,147 @@ class AlarmUseCaseTest {
 
         useCase.dismiss()
         useCase.release() // 例外が発生しないことを確認
+    }
+
+    // ---- スヌーズのテスト ----
+
+    @Test
+    fun スヌーズ中はWARNINGが抑制される() = runTest {
+        val fixedClock = FixedClock(0L)
+        val triggeredLevels = mutableListOf<GasLevel>()
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) { triggeredLevels += level }
+            override fun dismiss() {}
+            override fun release() {}
+        }
+
+        val useCase = AlarmUseCase(fakeMonitor(100f, 110f), controller, clock = fixedClock)
+        // スヌーズを5分設定してから observe する
+        useCase.snooze(5 * 60_000L)
+        useCase.observe().toList()
+
+        // スヌーズ中のため WARNING は発報されない
+        assertTrue(triggeredLevels.isEmpty(), "スヌーズ中の WARNING は抑制されるべき")
+    }
+
+    @Test
+    fun スヌーズ中でもCRITICALは発報される() = runTest {
+        val fixedClock = FixedClock(0L)
+        val triggeredLevels = mutableListOf<GasLevel>()
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) { triggeredLevels += level }
+            override fun dismiss() {}
+            override fun release() {}
+        }
+
+        val useCase = AlarmUseCase(fakeMonitor(380f), controller, clock = fixedClock)
+        useCase.snooze(5 * 60_000L)
+        useCase.observe().toList()
+
+        // CRITICAL はスヌーズを無視して発報される
+        assertEquals(listOf(GasLevel.CRITICAL), triggeredLevels, "スヌーズ中でも CRITICAL は発報されるべき")
+    }
+
+    @Test
+    fun スヌーズ期限切れ後はWARNINGが再発報される() = runTest {
+        val fixedClock = FixedClock(0L)
+        val triggeredLevels = mutableListOf<GasLevel>()
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) { triggeredLevels += level }
+            override fun dismiss() {}
+            override fun release() {}
+        }
+
+        // スヌーズを1分設定
+        val useCase = AlarmUseCase(fakeMonitor(100f), controller, clock = fixedClock)
+        useCase.snooze(60_000L)
+
+        // クロックをスヌーズ期限後に進める
+        fixedClock.nowMs = 61_000L
+
+        useCase.observe().toList()
+
+        // スヌーズ期限切れのため WARNING が再発報される
+        assertEquals(listOf(GasLevel.WARNING), triggeredLevels, "スヌーズ期限後は再発報されるべき")
+    }
+
+    @Test
+    fun cancelSnooze後はすぐにWARNINGが発報される() = runTest {
+        val fixedClock = FixedClock(0L)
+        val triggeredLevels = mutableListOf<GasLevel>()
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) { triggeredLevels += level }
+            override fun dismiss() {}
+            override fun release() {}
+        }
+
+        val useCase = AlarmUseCase(fakeMonitor(100f), controller, clock = fixedClock)
+        useCase.snooze(5 * 60_000L)
+        useCase.cancelSnooze()
+        useCase.observe().toList()
+
+        assertEquals(listOf(GasLevel.WARNING), triggeredLevels, "cancelSnooze 後は WARNING が発報されるべき")
+    }
+
+    @Test
+    fun SAFEに戻るとスヌーズがクリアされる() = runTest {
+        val fixedClock = FixedClock(0L)
+        val triggeredLevels = mutableListOf<GasLevel>()
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) { triggeredLevels += level }
+            override fun dismiss() {}
+            override fun release() {}
+        }
+
+        // WARNING → SAFE → WARNING の順。SAFE でスヌーズがクリアされるため2回目も発報すべき
+        val useCase = AlarmUseCase(fakeMonitor(100f, 30f, 100f), controller, clock = fixedClock)
+        useCase.snooze(5 * 60_000L)
+        useCase.observe().toList()
+
+        // スヌーズ中: 1回目の WARNING は抑制される
+        // SAFE でスヌーズクリア
+        // 2回目の WARNING は発報される
+        assertEquals(
+            listOf(GasLevel.WARNING),
+            triggeredLevels,
+            "SAFE でスヌーズがクリアされ、2回目の WARNING は発報されるべき",
+        )
+    }
+
+    @Test
+    fun isSnoozedはスヌーズ設定中にtrueを返す() = runTest {
+        val fixedClock = FixedClock(0L)
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) {}
+            override fun dismiss() {}
+            override fun release() {}
+        }
+
+        val useCase = AlarmUseCase(fakeMonitor(), controller, clock = fixedClock)
+        assertFalse(useCase.isSnoozed(), "初期状態はスヌーズ未設定のため false")
+        useCase.snooze(60_000L)
+        assertTrue(useCase.isSnoozed(), "snooze 後は true を返すべき")
+        fixedClock.nowMs = 61_000L
+        assertFalse(useCase.isSnoozed(), "期限切れ後は false を返すべき")
+    }
+
+    @Test
+    fun snoozeRemainingMsはスヌーズ残り時間を返す() = runTest {
+        val fixedClock = FixedClock(0L)
+        val controller = object : AlarmController {
+            override fun trigger(level: GasLevel) {}
+            override fun dismiss() {}
+            override fun release() {}
+        }
+
+        val useCase = AlarmUseCase(fakeMonitor(), controller, clock = fixedClock)
+        assertEquals(0L, useCase.snoozeRemainingMs(), "初期状態は 0 を返すべき")
+        useCase.snooze(60_000L)
+        assertEquals(60_000L, useCase.snoozeRemainingMs(), "スヌーズ設定直後は設定時間を返すべき")
+        fixedClock.nowMs = 30_000L
+        assertEquals(30_000L, useCase.snoozeRemainingMs(), "30秒後は残り30秒を返すべき")
+        fixedClock.nowMs = 65_000L
+        assertEquals(0L, useCase.snoozeRemainingMs(), "期限切れ後は 0 を返すべき")
     }
 
     // ---- Clock DI を使った時間ベースの抑制テスト ----

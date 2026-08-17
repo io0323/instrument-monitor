@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.instrument.domain.model.*
 import com.instrument.domain.repository.BleConnectionState
+import com.instrument.domain.usecase.AlarmUseCase
+import com.instrument.presentation.ui.alarm.formatSnoozeRemaining
 import com.instrument.presentation.ui.theme.GasLevelColors
 import com.instrument.presentation.viewmodel.DashboardViewModel
 import com.instrument.domain.model.SessionStats
@@ -42,10 +44,10 @@ fun DashboardScreen(
     onNavigateToAlarm: () -> Unit,
     onNavigateToSettings: () -> Unit,
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val history by viewModel.recentHistory.collectAsStateWithLifecycle()
+    val uiState        by viewModel.uiState.collectAsStateWithLifecycle()
+    val history        by viewModel.recentHistory.collectAsStateWithLifecycle()
     val reconnectState by viewModel.reconnectState.collectAsStateWithLifecycle()
-    val sessionStats by viewModel.sessionStats.collectAsStateWithLifecycle()
+    val sessionStats   by viewModel.sessionStats.collectAsStateWithLifecycle()
     // カスタム閾値をゲージ・チャートに反映するために settings を購読する
     val settings by viewModel.settings.collectAsStateWithLifecycle()
 
@@ -135,11 +137,19 @@ fun DashboardScreen(
                 }
             }
 
-            if (shouldShowAlarmOverlay(uiState.isAlarmActive, uiState.alarmLevel)) {
+            // スヌーズ中はオーバーレイを抑制し、代わりにスヌーズバナーをオーバーレイ下部に表示する
+            if (shouldShowAlarmOverlay(uiState.isAlarmActive, uiState.alarmLevel, uiState.isSnoozed)) {
                 AlarmOverlay(
-                    level = uiState.alarmLevel ?: GasLevel.WARNING,
-                    ppm = uiState.gasStatus?.reading?.ppm ?: 0f,
+                    level     = uiState.alarmLevel ?: GasLevel.WARNING,
+                    ppm       = uiState.gasStatus?.reading?.ppm ?: 0f,
                     onDismiss = { viewModel.dismissAlarm() },
+                    onSnooze  = { minutes -> viewModel.snoozeAlarm(minutes) },
+                )
+            }
+            if (uiState.isSnoozed) {
+                SnoozeBanner(
+                    snoozeRemainingMs = uiState.snoozeRemainingMs,
+                    onCancelSnooze    = { viewModel.cancelSnooze() },
                 )
             }
         }
@@ -318,8 +328,15 @@ fun GasGauge(
 
 internal fun ppmToAngle(ppm: Float): Float = (ppm / 500f) * 140f
 
-internal fun shouldShowAlarmOverlay(isAlarmActive: Boolean, alarmLevel: GasLevel?): Boolean =
-    isAlarmActive && alarmLevel != null
+/**
+ * アラームオーバーレイを表示すべきかを判定する純粋関数。
+ * スヌーズ中は CRITICAL 以外を抑制する。
+ */
+internal fun shouldShowAlarmOverlay(
+    isAlarmActive: Boolean,
+    alarmLevel: GasLevel?,
+    isSnoozed: Boolean,
+): Boolean = isAlarmActive && alarmLevel != null && (!isSnoozed || alarmLevel == GasLevel.CRITICAL)
 
 @Composable
 fun SensorCard(label: String, value: String, modifier: Modifier = Modifier) {
@@ -527,14 +544,19 @@ private fun SessionStatItem(label: String, value: String, modifier: Modifier = M
 }
 
 @Composable
-fun AlarmOverlay(level: GasLevel, ppm: Float, onDismiss: () -> Unit) {
+fun AlarmOverlay(
+    level    : GasLevel,
+    ppm      : Float,
+    onDismiss: () -> Unit,
+    onSnooze : (Int) -> Unit,
+) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val overlayColor = GasLevelColors[level] ?: (GasLevelColors[GasLevel.CRITICAL] ?: Color.Red)
     val title = when (level) {
-        GasLevel.WARNING -> "⚠ 注意レベル検出"
-        GasLevel.DANGER -> "⚠ 危険レベル検出"
+        GasLevel.WARNING  -> "⚠ 注意レベル検出"
+        GasLevel.DANGER   -> "⚠ 危険レベル検出"
         GasLevel.CRITICAL -> "🚨 緊急レベル検出"
-        GasLevel.SAFE -> "監視中"
+        GasLevel.SAFE     -> "監視中"
     }
     val alpha by infiniteTransition.animateFloat(
         initialValue = 0.85f, targetValue = 1.0f, label = "pulse",
@@ -562,6 +584,63 @@ fun AlarmOverlay(level: GasLevel, ppm: Float, onDismiss: () -> Unit) {
                 colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Red),
             ) {
                 Text("確認", fontWeight = FontWeight.Bold)
+            }
+            // CRITICAL 以外のレベルはスヌーズを選択できる
+            if (level != GasLevel.CRITICAL) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    AlarmUseCase.SNOOZE_OPTIONS_MINUTES.forEach { minutes ->
+                        OutlinedButton(
+                            onClick = { onSnooze(minutes) },
+                            colors  = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                            border  = ButtonDefaults.outlinedButtonBorder.copy(
+                                brush = androidx.compose.ui.graphics.SolidColor(Color.White),
+                            ),
+                        ) {
+                            Text("${minutes}分スヌーズ")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * スヌーズ中に画面下部に表示するバナー。
+ * 残り時間と解除ボタンを含む。
+ */
+@Composable
+fun SnoozeBanner(
+    snoozeRemainingMs: Long,
+    onCancelSnooze   : () -> Unit,
+) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color    = Color(0xFF37474F),
+            tonalElevation = 4.dp,
+        ) {
+            Row(
+                modifier          = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text  = "スヌーズ中: ${formatSnoozeRemaining(snoozeRemainingMs)}",
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                )
+                TextButton(onClick = onCancelSnooze) {
+                    Text("解除", color = Color(0xFFFFCC02), fontWeight = FontWeight.Bold)
+                }
             }
         }
     }

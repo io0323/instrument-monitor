@@ -14,6 +14,7 @@ import com.instrument.domain.usecase.ConnectDeviceUseCase
 import com.instrument.domain.usecase.LogMeasurementUseCase
 import com.instrument.domain.usecase.SessionStatsUseCase
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +28,10 @@ data class DashboardUiState(
     val isAlarmActive      : Boolean            = false,
     val alarmLevel         : GasLevel?          = null,
     val errorMessage       : String?            = null,
+    // スヌーズ中かどうか
+    val isSnoozed          : Boolean            = false,
+    // スヌーズ残り時間 (ミリ秒)。0 はスヌーズ未設定・期限切れを意味する
+    val snoozeRemainingMs  : Long               = 0L,
 )
 
 class DashboardViewModel(
@@ -59,6 +64,8 @@ class DashboardViewModel(
     private var monitorJob: Job? = null
     // 再接続ジョブ (キャンセル可能とするために保持する)
     private var reconnectJob: Job? = null
+    // スヌーズ残り時間を 500ms 毎にポーリングして UI を更新するジョブ
+    private var snoozeCountdownJob: Job? = null
 
     init { startMockMode() }
 
@@ -167,13 +174,24 @@ class DashboardViewModel(
                     }
                 }
 
-                // WARNING 以上でアラームバナーを表示
-                val isAlarmActive = status.level >= GasLevel.WARNING
+                // WARNING 以上でアラームバナーを表示。
+                // スヌーズ中は CRITICAL 以外を抑制する (AlarmUseCase と同じルール)
+                val levelTriggersAlarm = status.level >= GasLevel.WARNING
+                val snoozed = alarmUseCase.isSnoozed()
+                val isAlarmActive = levelTriggersAlarm && (!snoozed || status.level == GasLevel.CRITICAL)
+                // SAFE に戻ったときはスヌーズも自動解除する
+                if (status.level == GasLevel.SAFE && snoozed) {
+                    alarmUseCase.cancelSnooze()
+                    snoozeCountdownJob?.cancel()
+                    snoozeCountdownJob = null
+                }
                 _uiState.update {
                     it.copy(
                         gasStatus     = status,
                         isAlarmActive = isAlarmActive,
                         alarmLevel    = if (isAlarmActive) status.level else null,
+                        isSnoozed     = alarmUseCase.isSnoozed(),
+                        snoozeRemainingMs = alarmUseCase.snoozeRemainingMs(),
                     )
                 }
                 // 直近60件の読み取り履歴を保持
@@ -193,6 +211,40 @@ class DashboardViewModel(
         _uiState.update { it.copy(isAlarmActive = false, alarmLevel = null) }
     }
 
+    /**
+     * 指定した分数アラームをスヌーズする。
+     * スヌーズ中は WARNING・DANGER を抑制し、CRITICAL は引き続き発報する。
+     */
+    fun snoozeAlarm(minutes: Int) {
+        alarmUseCase.snooze(minutes * 60_000L)
+        _uiState.update { it.copy(isAlarmActive = false, alarmLevel = null, isSnoozed = true) }
+        startSnoozeCountdown()
+    }
+
+    /** スヌーズを手動解除する */
+    fun cancelSnooze() {
+        alarmUseCase.cancelSnooze()
+        snoozeCountdownJob?.cancel()
+        snoozeCountdownJob = null
+        _uiState.update { it.copy(isSnoozed = false, snoozeRemainingMs = 0L) }
+    }
+
+    /** 500ms ごとにスヌーズ残り時間をポーリングして UI を更新するコルーチンを起動する */
+    private fun startSnoozeCountdown() {
+        snoozeCountdownJob?.cancel()
+        snoozeCountdownJob = viewModelScope.launch {
+            while (true) {
+                val remaining = alarmUseCase.snoozeRemainingMs()
+                if (remaining <= 0L) {
+                    _uiState.update { it.copy(isSnoozed = false, snoozeRemainingMs = 0L) }
+                    break
+                }
+                _uiState.update { it.copy(isSnoozed = true, snoozeRemainingMs = remaining) }
+                delay(500L)
+            }
+        }
+    }
+
     /** Snackbar 表示後に呼び出してエラーメッセージをクリアする */
     fun clearErrorMessage() {
         _uiState.update { it.copy(errorMessage = null) }
@@ -201,6 +253,7 @@ class DashboardViewModel(
     override fun onCleared() {
         monitorJob?.cancel()
         reconnectJob?.cancel()
+        snoozeCountdownJob?.cancel()
         // AlarmController が保持するリソース（音声・振動）を解放する
         alarmUseCase.release()
         super.onCleared()
