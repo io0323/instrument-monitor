@@ -20,9 +20,33 @@ class AlarmUseCase(
     private var lastAlarmTime  = 0L
     private var lastAlarmLevel: GasLevel? = null
 
+    // スヌーズ終了時刻 (エポックミリ秒)。0 はスヌーズ未設定を意味する
+    private var snoozeUntilMs: Long = 0L
+
     fun observe(): Flow<GasStatus> = monitor().onEach { handleAlarm(it) }
 
     fun dismiss() = controller.dismiss()
+
+    /**
+     * 指定した時間 (ミリ秒) アラームをスヌーズする。
+     * CRITICAL レベルはスヌーズ中でも発報する。
+     */
+    fun snooze(durationMs: Long) {
+        snoozeUntilMs = clock.now().toEpochMilliseconds() + durationMs
+        controller.dismiss()
+    }
+
+    /** スヌーズを手動解除する */
+    fun cancelSnooze() {
+        snoozeUntilMs = 0L
+    }
+
+    /** 現在スヌーズ中かどうかを返す。スヌーズ未設定 (snoozeUntilMs == 0) は false を返す */
+    fun isSnoozed(): Boolean = snoozeUntilMs > 0L && clock.now().toEpochMilliseconds() < snoozeUntilMs
+
+    /** スヌーズの残り時間をミリ秒で返す。スヌーズ未設定・期限切れの場合は 0 を返す */
+    fun snoozeRemainingMs(): Long =
+        (snoozeUntilMs - clock.now().toEpochMilliseconds()).coerceAtLeast(0L)
 
     // AlarmController が保持する音声・振動リソースを解放する
     // ViewModel.onCleared() から必ず呼ぶこと
@@ -31,11 +55,14 @@ class AlarmUseCase(
     private fun handleAlarm(status: GasStatus) {
         if (status.level == GasLevel.SAFE) {
             controller.dismiss()
-            // SAFE に戻ったらアラーム履歴をリセットし、次の上昇時に即座に再発報できるようにする
+            // SAFE に戻ったらアラーム履歴とスヌーズをリセットし、次の上昇時に即座に再発報できるようにする
             lastAlarmLevel = null
             lastAlarmTime  = 0L
+            snoozeUntilMs  = 0L
             return
         }
+        // スヌーズ中は CRITICAL 以外を抑制する (安全のため CRITICAL は常に発報する)
+        if (isSnoozed() && status.level != GasLevel.CRITICAL) return
         val now     = clock.now().toEpochMilliseconds()
         val elapsed = now - lastAlarmTime
         val suppressMs = settingsRepo.settings.value.alarmSuppressIntervalSec * 1_000L
@@ -50,5 +77,7 @@ class AlarmUseCase(
     companion object {
         /** 同一レベルアラームを抑制する間隔 (ミリ秒) */
         const val SUPPRESS_INTERVAL_MS = 30_000L
+        /** スヌーズの選択肢 (分) */
+        val SNOOZE_OPTIONS_MINUTES: List<Int> = listOf(5, 10, 15)
     }
 }

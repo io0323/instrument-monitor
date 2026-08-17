@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.instrument.domain.model.AppSettings
 import com.instrument.domain.model.GasLevel
+import com.instrument.domain.usecase.AlarmUseCase
 import com.instrument.presentation.ui.theme.GasLevelColors
 import com.instrument.presentation.viewmodel.DashboardViewModel
 import org.koin.compose.viewmodel.koinViewModel
@@ -46,10 +47,14 @@ fun AlarmScreen(onNavigateBack: () -> Unit) {
             // 現在のアラーム状態カード
             item {
                 AlarmStatusCard(
-                    level         = uiState.gasStatus?.level ?: GasLevel.SAFE,
-                    ppm           = uiState.gasStatus?.reading?.ppm ?: 0f,
-                    isAlarmActive = uiState.isAlarmActive,
-                    onDismiss     = { viewModel.dismissAlarm() },
+                    level             = uiState.gasStatus?.level ?: GasLevel.SAFE,
+                    ppm               = uiState.gasStatus?.reading?.ppm ?: 0f,
+                    isAlarmActive     = uiState.isAlarmActive,
+                    isSnoozed         = uiState.isSnoozed,
+                    snoozeRemainingMs = uiState.snoozeRemainingMs,
+                    onDismiss         = { viewModel.dismissAlarm() },
+                    onSnooze          = { minutes -> viewModel.snoozeAlarm(minutes) },
+                    onCancelSnooze    = { viewModel.cancelSnooze() },
                 )
             }
 
@@ -75,10 +80,14 @@ fun AlarmScreen(onNavigateBack: () -> Unit) {
 
 @Composable
 private fun AlarmStatusCard(
-    level         : GasLevel,
-    ppm           : Float,
-    isAlarmActive : Boolean,
-    onDismiss     : () -> Unit,
+    level             : GasLevel,
+    ppm               : Float,
+    isAlarmActive     : Boolean,
+    isSnoozed         : Boolean,
+    snoozeRemainingMs : Long,
+    onDismiss         : () -> Unit,
+    onSnooze          : (Int) -> Unit,
+    onCancelSnooze    : () -> Unit,
 ) {
     val levelColor = GasLevelColors[level] ?: Color.Green
     Card(
@@ -105,20 +114,54 @@ private fun AlarmStatusCard(
                 style = MaterialTheme.typography.displaySmall,
                 color = levelColor,
             )
-            if (isAlarmActive) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Button(
-                    onClick = onDismiss,
-                    colors  = ButtonDefaults.buttonColors(containerColor = levelColor),
-                ) {
-                    Text("アラーム消音", color = Color.White, fontWeight = FontWeight.Bold)
+            when {
+                isSnoozed -> {
+                    // スヌーズ中: 残り時間とキャンセルボタンを表示する
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text  = "スヌーズ中: ${formatSnoozeRemaining(snoozeRemainingMs)}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    OutlinedButton(onClick = onCancelSnooze) {
+                        Text("スヌーズ解除")
+                    }
                 }
-            } else {
-                Text(
-                    text  = "アラームなし",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                isAlarmActive -> {
+                    // アラーム発報中: 消音ボタンとスヌーズ選択肢を表示する
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Button(
+                        onClick = onDismiss,
+                        colors  = ButtonDefaults.buttonColors(containerColor = levelColor),
+                    ) {
+                        Text("アラーム消音", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                    Text(
+                        text  = "スヌーズ",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        AlarmUseCase.SNOOZE_OPTIONS_MINUTES.forEach { minutes ->
+                            OutlinedButton(
+                                onClick = { onSnooze(minutes) },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            ) {
+                                Text("${minutes}分")
+                            }
+                        }
+                    }
+                }
+                else -> {
+                    Text(
+                        text  = "アラームなし",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
@@ -213,4 +256,15 @@ private fun levelLabel(level: GasLevel): String = when (level) {
     GasLevel.WARNING  -> "⚠️ 注意"
     GasLevel.DANGER   -> "🔶 危険"
     GasLevel.CRITICAL -> "🚨 緊急"
+}
+
+/**
+ * スヌーズ残り時間 (ミリ秒) を "MM分SS秒" 形式の文字列に変換する。
+ * 残り時間が1分未満の場合は "SS秒" のみを返す。
+ */
+internal fun formatSnoozeRemaining(ms: Long): String {
+    val totalSeconds = (ms / 1_000L).coerceAtLeast(0L)
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return if (minutes > 0) "${minutes}分${seconds.toString().padStart(2, '0')}秒" else "${seconds}秒"
 }
