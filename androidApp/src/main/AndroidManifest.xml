@@ -50,6 +50,11 @@
             android:foregroundServiceType="connectedDevice"
             android:exported="false" />
 
+        <!-- 通知アクションボタンからのスヌーズを受け取るレシーバー -->
+        <receiver
+            android:name=".receiver.SnoozeActionReceiver"
+            android:exported="false" />
+
     </application>
 
 </manifest>

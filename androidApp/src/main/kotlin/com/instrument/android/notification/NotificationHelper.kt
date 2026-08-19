@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.instrument.android.MainActivity
+import com.instrument.android.receiver.SnoozeActionReceiver
 import com.instrument.domain.model.GasLevel
 import com.instrument.presentation.ui.Routes
 
@@ -93,6 +94,23 @@ class NotificationHelper(private val context: Context) {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
+        // 各スヌーズ時間のPendingIntentを生成する (requestCode を分けて独立させる)
+        val snooze5Intent = PendingIntent.getBroadcast(
+            context, 10,
+            SnoozeActionReceiver.snoozeIntent(context, SnoozeActionReceiver.ACTION_SNOOZE_5),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val snooze10Intent = PendingIntent.getBroadcast(
+            context, 11,
+            SnoozeActionReceiver.snoozeIntent(context, SnoozeActionReceiver.ACTION_SNOOZE_10),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val snooze15Intent = PendingIntent.getBroadcast(
+            context, 12,
+            SnoozeActionReceiver.snoozeIntent(context, SnoozeActionReceiver.ACTION_SNOOZE_15),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+
         val notification = NotificationCompat.Builder(context, CHANNEL_ID_ALERT)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentTitle("⚠️ ${level.toJapanese()} 検知")
@@ -100,6 +118,9 @@ class NotificationHelper(private val context: Context) {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(tapIntent)
+            .addAction(0, "5分スヌーズ",  snooze5Intent)
+            .addAction(0, "10分スヌーズ", snooze10Intent)
+            .addAction(0, "15分スヌーズ", snooze15Intent)
             .build()
 
         notificationManager.notify(NOTIFICATION_ID_ALERT, notification)

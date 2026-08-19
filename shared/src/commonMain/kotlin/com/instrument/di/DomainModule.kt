@@ -23,7 +23,8 @@ val domainModule = module {
     factory { ConnectDeviceUseCase(get()) }
     factory { ScanDevicesUseCase(get()) }
     factory { LogMeasurementUseCase(get(), get()) }
-    factory { AlarmUseCase(get(), get(), get()) }
+    // シングルトンにしてBroadcastReceiverとViewModelで同一インスタンスを共有する
+    single { AlarmUseCase(get(), get(), get()) }
     factory { DeleteOldLogsUseCase(get()) }
     // ExportCsvUseCase を Koin 管理下に置き、HistoryViewModel へ適切に注入する
     factory { ExportCsvUseCase(get()) }

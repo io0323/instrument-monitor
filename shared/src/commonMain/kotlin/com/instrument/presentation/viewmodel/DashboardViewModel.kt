@@ -194,6 +194,10 @@ class DashboardViewModel(
                         snoozeRemainingMs = alarmUseCase.snoozeRemainingMs(),
                     )
                 }
+                // 通知ボタンなど外部からスヌーズが設定された場合もカウントダウンジョブを起動する
+                if (alarmUseCase.isSnoozed() && snoozeCountdownJob?.isActive != true) {
+                    startSnoozeCountdown()
+                }
                 // 直近60件の読み取り履歴を保持
                 val deque = ArrayDeque(_recentHistory.value)
                 if (deque.size >= 60) deque.removeFirst()
