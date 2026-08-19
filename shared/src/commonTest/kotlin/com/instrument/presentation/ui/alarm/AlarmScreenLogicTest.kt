@@ -7,6 +7,52 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
+// ── formatSnoozeRemaining のテスト ────────────────────────────────────────
+
+class FormatSnoozeRemainingTest {
+
+    @Test
+    fun ゼロミリ秒は0秒を返す() {
+        assertEquals("0秒", formatSnoozeRemaining(0L))
+    }
+
+    @Test
+    fun 負値は0秒を返す() {
+        assertEquals("0秒", formatSnoozeRemaining(-1000L))
+    }
+
+    @Test
+    fun ちょうど1分は1分00秒を返す() {
+        assertEquals("1分00秒", formatSnoozeRemaining(60_000L))
+    }
+
+    @Test
+    fun `1分30秒は1分30秒を返す`() {
+        assertEquals("1分30秒", formatSnoozeRemaining(90_000L))
+    }
+
+    @Test
+    fun `59秒は59秒を返す`() {
+        assertEquals("59秒", formatSnoozeRemaining(59_000L))
+    }
+
+    @Test
+    fun `5分は5分00秒を返す`() {
+        assertEquals("5分00秒", formatSnoozeRemaining(5 * 60_000L))
+    }
+
+    @Test
+    fun `10分は10分00秒を返す`() {
+        assertEquals("10分00秒", formatSnoozeRemaining(10 * 60_000L))
+    }
+
+    @Test
+    fun 秒の一桁はゼロ埋めされる() {
+        // 1分5秒
+        assertEquals("1分05秒", formatSnoozeRemaining(65_000L))
+    }
+}
+
 class AlarmScreenLogicTest {
 
     // ── buildAlarmThresholds: カスタム閾値の反映 ──────────────────────────

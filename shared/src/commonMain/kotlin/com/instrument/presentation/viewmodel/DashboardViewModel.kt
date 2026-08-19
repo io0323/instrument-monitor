@@ -187,10 +187,10 @@ class DashboardViewModel(
                 }
                 _uiState.update {
                     it.copy(
-                        gasStatus         = status,
-                        isAlarmActive     = isAlarmActive,
-                        alarmLevel        = if (isAlarmActive) status.level else null,
-                        isSnoozed         = alarmUseCase.isSnoozed(),
+                        gasStatus     = status,
+                        isAlarmActive = isAlarmActive,
+                        alarmLevel    = if (isAlarmActive) status.level else null,
+                        isSnoozed     = alarmUseCase.isSnoozed(),
                         snoozeRemainingMs = alarmUseCase.snoozeRemainingMs(),
                     )
                 }
