@@ -167,14 +167,6 @@ private fun AlarmStatusCard(
     }
 }
 
-/** スヌーズ残り時間を「MM分SS秒」形式でフォーマットする */
-private fun formatSnoozeRemaining(remainingMs: Long): String {
-    val totalSec = remainingMs / 1_000L
-    val min = totalSec / 60
-    val sec = totalSec % 60
-    return "${min}分${sec.toString().padStart(2, '0')}秒"
-}
-
 // ───── 閾値定義 ─────
 
 internal data class AlarmThreshold(
