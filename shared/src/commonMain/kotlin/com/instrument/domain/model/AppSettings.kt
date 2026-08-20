@@ -18,6 +18,9 @@ data class AppSettings(
     val dangerThresholdPpm: Int = 200,
     // CRITICAL レベルへ移行する閾値 (ppm)。[CRITICAL_THRESHOLD_RANGE] 内の値のみ有効
     val criticalThresholdPpm: Int = 350,
+    // バッテリー最適化の警告ダイアログを「後で」で閉じたかどうか
+    // true の場合、次回以降は表示しない
+    val batteryOptimizationWarningDismissed: Boolean = false,
 ) {
     companion object {
         /** ログ保持日数の選択肢 */
