@@ -21,6 +21,9 @@ class PersistentSettingsRepository(private val store: Settings) : SettingsReposi
         const val WARNING_THRESHOLD_PPM = "warning_threshold_ppm"
         const val DANGER_THRESHOLD_PPM = "danger_threshold_ppm"
         const val CRITICAL_THRESHOLD_PPM = "critical_threshold_ppm"
+        // 最後に接続したデバイス情報 (空文字は「未設定」を表す)
+        const val LAST_CONNECTED_DEVICE_ID = "last_connected_device_id"
+        const val LAST_CONNECTED_DEVICE_NAME = "last_connected_device_name"
     }
 
     // 起動時にストレージから読み込んだ初期値で StateFlow を生成する
@@ -38,6 +41,9 @@ class PersistentSettingsRepository(private val store: Settings) : SettingsReposi
         store.putInt(Keys.WARNING_THRESHOLD_PPM, settings.warningThresholdPpm)
         store.putInt(Keys.DANGER_THRESHOLD_PPM, settings.dangerThresholdPpm)
         store.putInt(Keys.CRITICAL_THRESHOLD_PPM, settings.criticalThresholdPpm)
+        // null は空文字として保存し、読み込み時に null へ変換する
+        store.putString(Keys.LAST_CONNECTED_DEVICE_ID, settings.lastConnectedDeviceId ?: "")
+        store.putString(Keys.LAST_CONNECTED_DEVICE_NAME, settings.lastConnectedDeviceName ?: "")
         _settings.value = settings
     }
 
@@ -77,6 +83,10 @@ class PersistentSettingsRepository(private val store: Settings) : SettingsReposi
                 key = Keys.CRITICAL_THRESHOLD_PPM,
                 defaultValue = defaults.criticalThresholdPpm,
             ),
+            lastConnectedDeviceId = store.getStringOrNull(Keys.LAST_CONNECTED_DEVICE_ID)
+                ?.takeIf { it.isNotEmpty() },
+            lastConnectedDeviceName = store.getStringOrNull(Keys.LAST_CONNECTED_DEVICE_NAME)
+                ?.takeIf { it.isNotEmpty() },
         )
     }
 }

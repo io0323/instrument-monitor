@@ -32,6 +32,9 @@ data class DashboardUiState(
     val isSnoozed          : Boolean            = false,
     // スヌーズ残り時間 (ミリ秒)。0 はスヌーズ未設定・期限切れを意味する
     val snoozeRemainingMs  : Long               = 0L,
+    // 前回の接続デバイス情報。未接続状態で再接続ボタンを表示するために使用する
+    val lastConnectedDeviceId  : String?        = null,
+    val lastConnectedDeviceName: String?        = null,
 )
 
 class DashboardViewModel(
@@ -67,7 +70,17 @@ class DashboardViewModel(
     // スヌーズ残り時間を 500ms 毎にポーリングして UI を更新するジョブ
     private var snoozeCountdownJob: Job? = null
 
-    init { startMockMode() }
+    init {
+        // 起動時に永続化済みのデバイス情報を UiState へ反映する
+        val saved = settingsRepo.settings.value
+        _uiState.update {
+            it.copy(
+                lastConnectedDeviceId   = saved.lastConnectedDeviceId,
+                lastConnectedDeviceName = saved.lastConnectedDeviceName,
+            )
+        }
+        startMockMode()
+    }
 
     fun connectDevice(deviceId: String, deviceName: String? = null) {
         viewModelScope.launch {
@@ -93,10 +106,19 @@ class DashboardViewModel(
                             // 接続成功: デバイスIDを記憶し、再接続状態をリセットする
                             lastConnectedDeviceId = deviceId
                             _reconnectState.value = ReconnectState.Idle
+                            // アプリ再起動後も再接続できるようにデバイス情報を永続化する
+                            settingsRepo.update(
+                                settingsRepo.settings.value.copy(
+                                    lastConnectedDeviceId   = deviceId,
+                                    lastConnectedDeviceName = deviceName,
+                                )
+                            )
                             it.copy(
-                                connectionState     = state,
-                                connectedDeviceName = deviceName,
-                                errorMessage        = null,
+                                connectionState          = state,
+                                connectedDeviceName      = deviceName,
+                                lastConnectedDeviceId    = deviceId,
+                                lastConnectedDeviceName  = deviceName,
+                                errorMessage             = null,
                             )
                         }
 
@@ -246,6 +268,19 @@ class DashboardViewModel(
                 _uiState.update { it.copy(isSnoozed = true, snoozeRemainingMs = remaining) }
                 delay(500L)
             }
+        }
+    }
+
+    /** 記憶していたデバイス情報を消去する。次回起動時に再接続候補が表示されなくなる */
+    fun forgetLastDevice() {
+        settingsRepo.update(
+            settingsRepo.settings.value.copy(
+                lastConnectedDeviceId   = null,
+                lastConnectedDeviceName = null,
+            )
+        )
+        _uiState.update {
+            it.copy(lastConnectedDeviceId = null, lastConnectedDeviceName = null)
         }
     }
 

@@ -18,6 +18,10 @@ data class AppSettings(
     val dangerThresholdPpm: Int = 200,
     // CRITICAL レベルへ移行する閾値 (ppm)。[CRITICAL_THRESHOLD_RANGE] 内の値のみ有効
     val criticalThresholdPpm: Int = 350,
+    // 最後に接続成功したデバイスの ID (Android: MAC アドレス / iOS: UUID)。null は未接続
+    val lastConnectedDeviceId: String? = null,
+    // 最後に接続成功したデバイスの表示名。null は未取得
+    val lastConnectedDeviceName: String? = null,
 ) {
     companion object {
         /** ログ保持日数の選択肢 */
