@@ -94,6 +94,15 @@ fun DashboardScreen(
                         onRetry = { viewModel.cancelReconnect() }, // キャンセルで Idle に戻してから自動トリガを待つ
                     )
                 }
+                // 未接続かつ前回のデバイスが記憶されている場合に再接続を促すバナーを表示する
+                item {
+                    LastDeviceReconnectBanner(
+                        connectionState = uiState.connectionState,
+                        lastDeviceName = uiState.lastConnectedDeviceName,
+                        lastDeviceId = uiState.lastConnectedDeviceId,
+                        onReconnect = { id, name -> viewModel.connectDevice(id, name) },
+                    )
+                }
                 item {
                     val status = uiState.gasStatus
                     GasGauge(
@@ -415,6 +424,52 @@ fun TrendIndicator(status: GasStatus?, history: List<SensorReading>) {
         Text(text = arrow, fontSize = 28.sp, color = color)
         Spacer(modifier = Modifier.width(8.dp))
         Text("直近5件平均: ${"%.1f".format(avg)} ppm", style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/**
+ * 前回接続していたデバイスへの再接続を促すバナー。
+ * 未接続状態かつ記憶済みデバイスが存在し、再接続フローが走っていない場合のみ表示する。
+ */
+@Composable
+fun LastDeviceReconnectBanner(
+    connectionState: BleConnectionState,
+    lastDeviceName: String?,
+    lastDeviceId: String?,
+    onReconnect: (deviceId: String, deviceName: String?) -> Unit,
+) {
+    val isDisconnected = connectionState == BleConnectionState.Disconnected
+    if (!isDisconnected || lastDeviceId == null) return
+
+    val displayName = lastDeviceName ?: lastDeviceId
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "前回のデバイス",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Text(
+                    text = displayName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+            TextButton(onClick = { onReconnect(lastDeviceId, lastDeviceName) }) {
+                Text("再接続")
+            }
+        }
     }
 }
 

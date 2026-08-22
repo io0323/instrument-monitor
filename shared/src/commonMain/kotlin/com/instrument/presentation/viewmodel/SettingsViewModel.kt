@@ -173,6 +173,16 @@ class SettingsViewModel(
         )
     }
 
+    /** 記憶していた最終接続デバイス情報を消去する */
+    fun forgetLastDevice() {
+        settingsRepo.update(
+            settings.value.copy(
+                lastConnectedDeviceId   = null,
+                lastConnectedDeviceName = null,
+            )
+        )
+    }
+
     /** 全閾値をデフォルト値 (50 / 200 / 350 ppm) にリセットする */
     fun resetThresholdsToDefault() {
         val defaults = AppSettings()

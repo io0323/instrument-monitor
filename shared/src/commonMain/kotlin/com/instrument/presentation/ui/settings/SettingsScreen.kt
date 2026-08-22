@@ -43,6 +43,16 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            item { SettingsSectionHeader("接続デバイス") }
+            item {
+                LastDeviceCard(
+                    deviceName = settings.lastConnectedDeviceName,
+                    deviceId = settings.lastConnectedDeviceId,
+                    onForget = viewModel::forgetLastDevice,
+                )
+            }
+
+            item { Spacer(modifier = Modifier.height(8.dp)) }
             item { SettingsSectionHeader("データ記録") }
             item { GpsLoggingToggle(enabled = settings.gpsLoggingEnabled, onToggle = viewModel::toggleGpsLogging) }
 
@@ -127,6 +137,75 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+// 最後に接続したデバイス情報を表示し「忘れる」操作を提供するカード
+@Composable
+private fun LastDeviceCard(
+    deviceName: String?,
+    deviceId: String?,
+    onForget: () -> Unit,
+) {
+    var showConfirmDialog by remember { mutableStateOf(false) }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                if (deviceId != null) {
+                    Text(
+                        text = deviceName ?: "不明なデバイス",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        text = deviceId,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Text(
+                        text = "記憶済みデバイスなし",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (deviceId != null) {
+                TextButton(onClick = { showConfirmDialog = true }) {
+                    Text("忘れる", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+
+    if (showConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDialog = false },
+            title = { Text("デバイスを忘れる") },
+            text = {
+                Text("「${deviceName ?: deviceId}」の接続情報を削除します。\n次回起動時に再接続候補として表示されなくなります。")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onForget()
+                        showConfirmDialog = false
+                    },
+                ) {
+                    Text("削除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmDialog = false }) {
+                    Text("キャンセル")
+                }
+            },
+        )
     }
 }
 
