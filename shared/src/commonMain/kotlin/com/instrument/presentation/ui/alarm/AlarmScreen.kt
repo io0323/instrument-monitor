@@ -11,10 +11,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.instrument.domain.model.AppSettings
 import com.instrument.domain.model.GasLevel
+import com.instrument.domain.model.Trend
 import com.instrument.domain.usecase.AlarmUseCase
+import com.instrument.presentation.ui.dashboard.computeChangeRate
+import com.instrument.presentation.ui.dashboard.computeTimeToNextLevel
 import com.instrument.presentation.ui.theme.GasLevelColors
 import com.instrument.presentation.viewmodel.DashboardViewModel
 import org.koin.compose.viewmodel.koinViewModel
@@ -22,9 +26,10 @@ import org.koin.compose.viewmodel.koinViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlarmScreen(onNavigateBack: () -> Unit) {
-    val viewModel: DashboardViewModel = koinViewModel()
-    val uiState  by viewModel.uiState.collectAsStateWithLifecycle()
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val viewModel    : DashboardViewModel = koinViewModel()
+    val uiState      by viewModel.uiState.collectAsStateWithLifecycle()
+    val settings     by viewModel.settings.collectAsStateWithLifecycle()
+    val recentHistory by viewModel.recentHistory.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -58,6 +63,16 @@ fun AlarmScreen(onNavigateBack: () -> Unit) {
                 )
             }
 
+            // 現在のトレンド状況カード
+            item {
+                AlarmTrendCard(
+                    trend     = uiState.gasStatus?.trend,
+                    currentPpm = uiState.gasStatus?.reading?.ppm ?: 0f,
+                    history   = recentHistory,
+                    settings  = settings,
+                )
+            }
+
             // セクションヘッダー
             item {
                 Text(
@@ -71,6 +86,89 @@ fun AlarmScreen(onNavigateBack: () -> Unit) {
             // 閾値一覧 (AppSettings から動的に生成する)
             items(buildAlarmThresholds(settings)) { threshold ->
                 AlarmThresholdRow(threshold)
+            }
+        }
+    }
+}
+
+// ───── トレンドサマリカード ─────
+
+/**
+ * アラーム画面向けのコンパクトなトレンドサマリカード。
+ * 現在のトレンド方向・変化速度・次レベル到達予測を表示する。
+ */
+@Composable
+private fun AlarmTrendCard(
+    trend     : Trend?,
+    currentPpm: Float,
+    history   : List<com.instrument.domain.model.SensorReading>,
+    settings  : AppSettings,
+) {
+    val resolvedTrend = trend ?: Trend.STABLE
+    val changeRate    = computeChangeRate(history)
+    val prediction    = changeRate?.let {
+        computeTimeToNextLevel(
+            currentPpm    = currentPpm,
+            trend         = resolvedTrend,
+            ratePpmPerMin = it,
+            warningPpm    = settings.warningThresholdPpm.toFloat(),
+            dangerPpm     = settings.dangerThresholdPpm.toFloat(),
+            criticalPpm   = settings.criticalThresholdPpm.toFloat(),
+        )
+    }
+
+    val (arrow, trendLabel, trendColor) = when (resolvedTrend) {
+        Trend.RISING  -> Triple("↑", "上昇中", Color(0xFFFF5722))
+        Trend.FALLING -> Triple("↓", "下降中", Color(0xFF4CAF50))
+        Trend.STABLE  -> Triple("→", "安定",   Color(0xFF9E9E9E))
+    }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text  = "トレンド",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(arrow, fontSize = 28.sp, color = trendColor, fontWeight = FontWeight.Bold)
+                Column {
+                    Text(
+                        text  = trendLabel,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = trendColor,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    if (changeRate != null) {
+                        val sign = if (changeRate > 0f) "+" else ""
+                        Text(
+                            text  = "${sign}${"%.1f".format(changeRate)} ppm/分",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            if (prediction != null) {
+                val (minutes, label) = prediction
+                val predictionText = when (resolvedTrend) {
+                    Trend.RISING  -> "約 ${minutes.toInt()} 分後に $label レベルへ達する見込みです"
+                    Trend.FALLING -> "約 ${minutes.toInt()} 分後に $label レベルへ低下する見込みです"
+                    Trend.STABLE  -> ""
+                }
+                if (predictionText.isNotEmpty()) {
+                    Text(
+                        text  = predictionText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = trendColor.copy(alpha = 0.85f),
+                    )
+                }
             }
         }
     }
@@ -165,14 +263,6 @@ private fun AlarmStatusCard(
             }
         }
     }
-}
-
-/** スヌーズ残り時間を「MM分SS秒」形式でフォーマットする */
-private fun formatSnoozeRemaining(remainingMs: Long): String {
-    val totalSec = remainingMs / 1_000L
-    val min = totalSec / 60
-    val sec = totalSec % 60
-    return "${min}分${sec.toString().padStart(2, '0')}秒"
 }
 
 // ───── 閾値定義 ─────
