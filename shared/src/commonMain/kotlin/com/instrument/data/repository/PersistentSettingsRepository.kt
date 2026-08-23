@@ -22,6 +22,9 @@ class PersistentSettingsRepository(private val store: Settings) : SettingsReposi
         const val DANGER_THRESHOLD_PPM = "danger_threshold_ppm"
         const val CRITICAL_THRESHOLD_PPM = "critical_threshold_ppm"
         const val BATTERY_OPTIMIZATION_WARNING_DISMISSED = "battery_optimization_warning_dismissed"
+        // 前回接続デバイス情報
+        const val LAST_CONNECTED_DEVICE_ID   = "last_connected_device_id"
+        const val LAST_CONNECTED_DEVICE_NAME = "last_connected_device_name"
     }
 
     // 起動時にストレージから読み込んだ初期値で StateFlow を生成する
@@ -43,6 +46,9 @@ class PersistentSettingsRepository(private val store: Settings) : SettingsReposi
             Keys.BATTERY_OPTIMIZATION_WARNING_DISMISSED,
             settings.batteryOptimizationWarningDismissed,
         )
+        // 前回接続デバイス情報 (null の場合は空文字で上書き、読み込み時に null へ戻す)
+        store.putString(Keys.LAST_CONNECTED_DEVICE_ID, settings.lastConnectedDeviceId ?: "")
+        store.putString(Keys.LAST_CONNECTED_DEVICE_NAME, settings.lastConnectedDeviceName ?: "")
         _settings.value = settings
     }
 
@@ -86,6 +92,10 @@ class PersistentSettingsRepository(private val store: Settings) : SettingsReposi
                 key = Keys.BATTERY_OPTIMIZATION_WARNING_DISMISSED,
                 defaultValue = defaults.batteryOptimizationWarningDismissed,
             ),
+            lastConnectedDeviceId = store.getStringOrNull(Keys.LAST_CONNECTED_DEVICE_ID)
+                ?.takeIf { it.isNotEmpty() },
+            lastConnectedDeviceName = store.getStringOrNull(Keys.LAST_CONNECTED_DEVICE_NAME)
+                ?.takeIf { it.isNotEmpty() },
         )
     }
 }

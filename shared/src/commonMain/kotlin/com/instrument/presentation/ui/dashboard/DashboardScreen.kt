@@ -43,6 +43,7 @@ fun DashboardScreen(
     onNavigateToHistory: () -> Unit,
     onNavigateToAlarm: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToStats: () -> Unit = {},
 ) {
     val uiState        by viewModel.uiState.collectAsStateWithLifecycle()
     val history        by viewModel.recentHistory.collectAsStateWithLifecycle()
@@ -142,6 +143,14 @@ fun DashboardScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = onNavigateToHistory, modifier = Modifier.weight(1f)) { Text("履歴") }
                         OutlinedButton(onClick = onNavigateToAlarm, modifier = Modifier.weight(1f)) { Text("アラーム") }
+                    }
+                }
+                item {
+                    OutlinedButton(
+                        onClick = onNavigateToStats,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("統計・分析")
                     }
                 }
             }
