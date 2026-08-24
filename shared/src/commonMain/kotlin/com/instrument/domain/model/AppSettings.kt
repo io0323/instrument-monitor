@@ -21,6 +21,10 @@ data class AppSettings(
     // バッテリー最適化の警告ダイアログを「後で」で閉じたかどうか
     // true の場合、次回以降は表示しない
     val batteryOptimizationWarningDismissed: Boolean = false,
+    // 前回接続したデバイスの ID。次回起動時に再接続候補として表示するために永続化する
+    val lastConnectedDeviceId: String? = null,
+    // 前回接続したデバイスの表示名
+    val lastConnectedDeviceName: String? = null,
 ) {
     companion object {
         /** ログ保持日数の選択肢 */
