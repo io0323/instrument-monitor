@@ -16,8 +16,13 @@ import kotlinx.datetime.toLocalDateTime
 /**
  * 過去 [DAYS] 日間のログ統計を集計するユースケース。
  * SQLDelight の全件取得 Flow を利用して、in-memory で日別・レベル別の集計を行う。
+ *
+ * @param clock テスト時に固定時刻を注入できるようにする (デフォルト: [Clock.System])
  */
-class GetLogStatisticsUseCase(private val logRepository: LogRepository) {
+class GetLogStatisticsUseCase(
+    private val logRepository: LogRepository,
+    private val clock: Clock = Clock.System,
+) {
 
     companion object {
         // 集計対象期間 (日)
@@ -29,7 +34,7 @@ class GetLogStatisticsUseCase(private val logRepository: LogRepository) {
     /** 過去 7 日間のログを集計した [LogPeriodStats] を Flow として返す。 */
     fun getWeeklyStats(): Flow<LogPeriodStats> =
         logRepository.getAllReadings().map { readings ->
-            val nowMs = Clock.System.now().toEpochMilliseconds()
+            val nowMs = clock.now().toEpochMilliseconds()
             val cutoffMs = nowMs - DAYS * 24 * 60 * 60 * 1000L
             val recent = readings.filter { it.reading.timestamp >= cutoffMs }
             buildStats(recent, nowMs)

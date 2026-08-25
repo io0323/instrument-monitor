@@ -1,14 +1,31 @@
 package com.instrument.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.instrument.domain.model.AppSettings
 import com.instrument.domain.repository.SettingsRepository
+import com.instrument.domain.usecase.ClearAllLogsUseCase
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 // アプリ設定の読み書きを担う ViewModel
 class SettingsViewModel(
     private val settingsRepo: SettingsRepository,
+    private val clearAllLogsUseCase: ClearAllLogsUseCase,
 ) : ViewModel() {
+
+    /** 全ログ削除操作の状態 */
+    sealed class ClearAllLogsState {
+        object Idle       : ClearAllLogsState()
+        object InProgress : ClearAllLogsState()
+        object Done       : ClearAllLogsState()
+        data class Error(val message: String) : ClearAllLogsState()
+    }
+
+    private val _clearAllLogsState = MutableStateFlow<ClearAllLogsState>(ClearAllLogsState.Idle)
+    val clearAllLogsState: StateFlow<ClearAllLogsState> = _clearAllLogsState.asStateFlow()
 
     /** 現在の設定状態 */
     val settings: StateFlow<AppSettings> = settingsRepo.settings
@@ -181,6 +198,29 @@ class SettingsViewModel(
                 lastConnectedDeviceName = null,
             )
         )
+    }
+
+    /**
+     * 全計測ログを削除する。
+     * 操作の進行状況は [clearAllLogsState] で通知される。
+     * 完了後に [resetClearAllLogsState] を呼び出して Idle へ戻すこと。
+     */
+    fun clearAllLogs() {
+        viewModelScope.launch {
+            _clearAllLogsState.value = ClearAllLogsState.InProgress
+            clearAllLogsUseCase()
+                .onSuccess { _clearAllLogsState.value = ClearAllLogsState.Done }
+                .onFailure { e ->
+                    _clearAllLogsState.value = ClearAllLogsState.Error(
+                        e.message ?: "不明なエラーが発生しました"
+                    )
+                }
+        }
+    }
+
+    /** [clearAllLogsState] を Idle にリセットする (Snackbar 表示後に呼ぶ) */
+    fun resetClearAllLogsState() {
+        _clearAllLogsState.value = ClearAllLogsState.Idle
     }
 
     /** 全閾値をデフォルト値 (50 / 200 / 350 ppm) にリセットする */
