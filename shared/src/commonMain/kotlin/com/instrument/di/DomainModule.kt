@@ -1,6 +1,7 @@
 package com.instrument.di
 
 import com.instrument.domain.usecase.AlarmUseCase
+import com.instrument.domain.usecase.ClearAllLogsUseCase
 import com.instrument.domain.usecase.ConnectDeviceUseCase
 import com.instrument.domain.usecase.DeleteOldLogsUseCase
 import com.instrument.domain.usecase.ExportCsvUseCase
@@ -34,6 +35,8 @@ val domainModule = module {
     factory { SessionStatsUseCase() }
     // LogRepository を使って週間ログ統計を集計する
     factory { GetLogStatisticsUseCase(get()) }
+    // 全計測ログを一括削除する
+    factory { ClearAllLogsUseCase(get()) }
 }
 
 val viewModelModule = module {
@@ -41,6 +44,6 @@ val viewModelModule = module {
     factory { DeviceListViewModel(get(), get()) }
     // ExportCsvUseCase・DeleteOldLogsUseCase を Koin から受け取るよう明示的に注入する
     factory { HistoryViewModel(get(), get(), get()) }
-    factory { SettingsViewModel(get()) }
+    factory { SettingsViewModel(get(), get()) }
     factory { StatsViewModel(get()) }
 }

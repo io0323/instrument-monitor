@@ -23,8 +23,27 @@ import org.koin.compose.viewmodel.koinViewModel
 fun SettingsScreen(onNavigateBack: () -> Unit) {
     val viewModel: SettingsViewModel = koinViewModel()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val clearAllLogsState by viewModel.clearAllLogsState.collectAsStateWithLifecycle()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // 削除完了・失敗時に Snackbar を表示し、状態をリセットする
+    LaunchedEffect(clearAllLogsState) {
+        when (val state = clearAllLogsState) {
+            is SettingsViewModel.ClearAllLogsState.Done -> {
+                snackbarHostState.showSnackbar("計測データをすべて削除しました")
+                viewModel.resetClearAllLogsState()
+            }
+            is SettingsViewModel.ClearAllLogsState.Error -> {
+                snackbarHostState.showSnackbar("削除に失敗しました: ${state.message}")
+                viewModel.resetClearAllLogsState()
+            }
+            else -> Unit
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("設定") },
@@ -135,6 +154,15 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                 ) {
                     Text("デフォルト値に戻す (50 / 200 / 350 ppm)")
                 }
+            }
+
+            item { Spacer(modifier = Modifier.height(8.dp)) }
+            item { SettingsSectionHeader("データ管理") }
+            item {
+                ClearAllLogsCard(
+                    isInProgress = clearAllLogsState is SettingsViewModel.ClearAllLogsState.InProgress,
+                    onClearAll   = { viewModel.clearAllLogs() },
+                )
             }
         }
     }
@@ -365,5 +393,80 @@ private fun <T> OptionSelector(
                 )
             }
         }
+    }
+}
+
+/**
+ * 全計測データを削除するカード。
+ * 誤操作防止のため確認ダイアログを挟む。
+ * [isInProgress] が true の間は削除ボタンを無効化してインジケータを表示する。
+ */
+@Composable
+private fun ClearAllLogsCard(
+    isInProgress: Boolean,
+    onClearAll: () -> Unit,
+) {
+    var showConfirmDialog by remember { mutableStateOf(false) }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "計測データをすべて削除",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                Text(
+                    text = "保存済みの全計測ログを完全に削除します。この操作は元に戻せません。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (isInProgress) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                TextButton(
+                    onClick = { showConfirmDialog = true },
+                    enabled = !isInProgress,
+                ) {
+                    Text("削除", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+
+    if (showConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDialog = false },
+            title = { Text("計測データをすべて削除しますか？") },
+            text = {
+                Text(
+                    "保存されているすべての計測ログが完全に削除されます。\n\nこの操作は元に戻せません。",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onClearAll()
+                        showConfirmDialog = false
+                    },
+                ) {
+                    Text("すべて削除", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmDialog = false }) {
+                    Text("キャンセル")
+                }
+            },
+        )
     }
 }
