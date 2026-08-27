@@ -1,9 +1,11 @@
 package com.instrument.di
 
 import com.instrument.domain.usecase.AlarmUseCase
+import com.instrument.domain.usecase.ClearAllLogsUseCase
 import com.instrument.domain.usecase.ConnectDeviceUseCase
 import com.instrument.domain.usecase.DeleteOldLogsUseCase
 import com.instrument.domain.usecase.ExportCsvUseCase
+import com.instrument.domain.usecase.GetLogStatisticsUseCase
 import com.instrument.domain.usecase.LogMeasurementUseCase
 import com.instrument.domain.usecase.MonitorGasUseCase
 import com.instrument.domain.usecase.ScanDevicesUseCase
@@ -12,6 +14,7 @@ import com.instrument.presentation.viewmodel.DashboardViewModel
 import com.instrument.presentation.viewmodel.DeviceListViewModel
 import com.instrument.presentation.viewmodel.HistoryViewModel
 import com.instrument.presentation.viewmodel.SettingsViewModel
+import com.instrument.presentation.viewmodel.StatsViewModel
 import org.koin.dsl.module
 
 val domainModule = module {
@@ -30,6 +33,10 @@ val domainModule = module {
     factory { ExportCsvUseCase(get()) }
     // 依存なしの純粋ユースケース
     factory { SessionStatsUseCase() }
+    // LogRepository を使って週間ログ統計を集計する
+    factory { GetLogStatisticsUseCase(get()) }
+    // 全計測ログを一括削除する
+    factory { ClearAllLogsUseCase(get()) }
 }
 
 val viewModelModule = module {
@@ -37,5 +44,6 @@ val viewModelModule = module {
     factory { DeviceListViewModel(get(), get()) }
     // ExportCsvUseCase・DeleteOldLogsUseCase を Koin から受け取るよう明示的に注入する
     factory { HistoryViewModel(get(), get(), get()) }
-    factory { SettingsViewModel(get()) }
+    factory { SettingsViewModel(get(), get()) }
+    factory { StatsViewModel(get()) }
 }

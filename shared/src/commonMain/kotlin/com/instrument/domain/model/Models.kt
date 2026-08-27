@@ -100,3 +100,30 @@ data class SessionStats(
     val peakLevel:    GasLevel,
     val readingCount: Int,
 )
+
+// 1日分の ppm 統計 (週間チャート用)
+data class DailyPpmStats(
+    val dayLabel:     String,  // 曜日ラベル ("月", "火", ...)
+    val maxPpm:       Float,
+    val avgPpm:       Float,
+    val readingCount: Int,
+)
+
+// ガスレベル別アラーム発生回数
+data class AlarmCounts(
+    val warning:  Int,
+    val danger:   Int,
+    val critical: Int,
+) {
+    val total: Int get() = warning + danger + critical
+}
+
+// ログ統計 (週間サマリ + 日別チャート + アラーム集計)
+data class LogPeriodStats(
+    val minPpm:       Float,
+    val maxPpm:       Float,
+    val avgPpm:       Float,
+    val totalReadings: Int,
+    val dailyStats:   List<DailyPpmStats>,
+    val alarmCounts:  AlarmCounts,
+)

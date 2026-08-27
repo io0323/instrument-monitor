@@ -2,14 +2,58 @@ package com.instrument.presentation.viewmodel
 
 import com.instrument.data.repository.InMemorySettingsRepository
 import com.instrument.domain.model.AppSettings
+import com.instrument.domain.model.GeoTaggedReading
+import com.instrument.domain.repository.LogRepository
+import com.instrument.domain.usecase.ClearAllLogsUseCase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {
 
-    private fun buildViewModel() = SettingsViewModel(InMemorySettingsRepository())
+    private val testDispatcher = StandardTestDispatcher()
+
+    @BeforeTest
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+    }
+
+    @AfterTest
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    // テスト用 FakeLogRepository
+    private class FakeLogRepository(
+        private val deleteResult: Result<Unit> = Result.success(Unit),
+    ) : LogRepository {
+        override suspend fun save(reading: GeoTaggedReading): Result<Long> = Result.success(0L)
+        override fun getAllReadings(): Flow<List<GeoTaggedReading>> = flowOf(emptyList())
+        override fun getDangerousReadings(): Flow<List<GeoTaggedReading>> = flowOf(emptyList())
+        override suspend fun deleteOlderThan(epochMs: Long): Result<Unit> = deleteResult
+        override suspend fun exportCsv(): Result<String> = Result.success("")
+    }
+
+    private fun buildViewModel(
+        deleteResult: Result<Unit> = Result.success(Unit),
+    ) = SettingsViewModel(
+        settingsRepo        = InMemorySettingsRepository(),
+        clearAllLogsUseCase = ClearAllLogsUseCase(FakeLogRepository(deleteResult)),
+    )
 
     // ---- GPS ロギングトグル ----
 
@@ -238,5 +282,38 @@ class SettingsViewModelTest {
         assertEquals(100, result.criticalThresholdPpm, "CRITICAL は 100 になるべき")
         assertTrue(result.dangerThresholdPpm < 100, "DANGER は CRITICAL より小さくなるべき")
         assertTrue(result.warningThresholdPpm < result.dangerThresholdPpm, "WARNING は DANGER より小さくなるべき")
+    }
+
+    // ---- 全ログ削除 ----
+
+    @Test
+    fun 初期状態のclearAllLogsStateはIdle() {
+        val vm = buildViewModel()
+        assertIs<SettingsViewModel.ClearAllLogsState.Idle>(vm.clearAllLogsState.value)
+    }
+
+    @Test
+    fun clearAllLogsが成功するとstateがDoneになる() = runTest {
+        val vm = buildViewModel(deleteResult = Result.success(Unit))
+        vm.clearAllLogs()
+        advanceUntilIdle()
+        assertIs<SettingsViewModel.ClearAllLogsState.Done>(vm.clearAllLogsState.value)
+    }
+
+    @Test
+    fun clearAllLogsが失敗するとstateがErrorになる() = runTest {
+        val vm = buildViewModel(deleteResult = Result.failure(RuntimeException("DB error")))
+        vm.clearAllLogs()
+        advanceUntilIdle()
+        assertIs<SettingsViewModel.ClearAllLogsState.Error>(vm.clearAllLogsState.value)
+    }
+
+    @Test
+    fun resetClearAllLogsStateを呼ぶとIdle状態に戻る() = runTest {
+        val vm = buildViewModel(deleteResult = Result.success(Unit))
+        vm.clearAllLogs()
+        advanceUntilIdle()
+        vm.resetClearAllLogsState()
+        assertIs<SettingsViewModel.ClearAllLogsState.Idle>(vm.clearAllLogsState.value)
     }
 }

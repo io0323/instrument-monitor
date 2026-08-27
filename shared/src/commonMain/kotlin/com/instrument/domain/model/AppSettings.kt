@@ -18,6 +18,13 @@ data class AppSettings(
     val dangerThresholdPpm: Int = 200,
     // CRITICAL レベルへ移行する閾値 (ppm)。[CRITICAL_THRESHOLD_RANGE] 内の値のみ有効
     val criticalThresholdPpm: Int = 350,
+    // バッテリー最適化の警告ダイアログを「後で」で閉じたかどうか
+    // true の場合、次回以降は表示しない
+    val batteryOptimizationWarningDismissed: Boolean = false,
+    // 前回接続したデバイスの ID。次回起動時に再接続候補として表示するために永続化する
+    val lastConnectedDeviceId: String? = null,
+    // 前回接続したデバイスの表示名
+    val lastConnectedDeviceName: String? = null,
 ) {
     companion object {
         /** ログ保持日数の選択肢 */
