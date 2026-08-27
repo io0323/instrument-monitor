@@ -134,7 +134,7 @@ fun DashboardScreen(
                     )
                 }
                 item {
-                    TrendIndicator(status = uiState.gasStatus, history = history)
+                    TrendIndicator(status = uiState.gasStatus, history = history, settings = settings)
                 }
                 item {
                     SessionStatsCard(stats = sessionStats, modifier = Modifier.fillMaxWidth())
@@ -410,29 +410,164 @@ fun RealtimeChart(
 internal fun computeRecentAverage(history: List<SensorReading>, count: Int = 5): Double =
     if (history.isEmpty()) 0.0 else history.takeLast(count).map { it.ppm }.average()
 
+/**
+ * 直近の readings から ppm/分 の変化率を計算する。
+ * readings が 2 件未満、または経過時間が 0.1 分未満の場合は null を返す。
+ */
+internal fun computeChangeRate(history: List<SensorReading>): Float? {
+    val samples = history.takeLast(10)
+    if (samples.size < 2) return null
+    val first = samples.first()
+    val last  = samples.last()
+    val elapsedMin = (last.timestamp - first.timestamp) / 60_000f
+    if (elapsedMin < 0.1f) return null
+    return (last.ppm - first.ppm) / elapsedMin
+}
+
+/**
+ * 現在の ppm・変化率・閾値から次のガスレベルに達するまでの時間 (分) とレベル名を返す。
+ * 安定・変化なし・既に上限/下限の場合は null を返す。
+ */
+internal fun computeTimeToNextLevel(
+    currentPpm   : Float,
+    trend        : Trend,
+    ratePpmPerMin: Float,
+    warningPpm   : Float,
+    dangerPpm    : Float,
+    criticalPpm  : Float,
+): Pair<Float, String>? = when (trend) {
+    Trend.RISING -> {
+        if (ratePpmPerMin <= 0f) null
+        else {
+            val (target, label) = when {
+                currentPpm < warningPpm  -> warningPpm  to "WARNING"
+                currentPpm < dangerPpm   -> dangerPpm   to "DANGER"
+                currentPpm < criticalPpm -> criticalPpm to "CRITICAL"
+                else                     -> return null
+            }
+            val minutes = (target - currentPpm) / ratePpmPerMin
+            if (minutes > 0f) Pair(minutes, label) else null
+        }
+    }
+    Trend.FALLING -> {
+        if (ratePpmPerMin >= 0f) null
+        else {
+            val absRate = -ratePpmPerMin
+            val (target, label) = when {
+                currentPpm >= criticalPpm -> criticalPpm to "DANGER以下"
+                currentPpm >= dangerPpm   -> dangerPpm   to "WARNING以下"
+                currentPpm >= warningPpm  -> warningPpm  to "安全"
+                else                      -> return null
+            }
+            val minutes = (currentPpm - target) / absRate
+            if (minutes > 0f) Pair(minutes, label) else null
+        }
+    }
+    Trend.STABLE -> null
+}
+
 @Composable
-fun TrendIndicator(status: GasStatus?, history: List<SensorReading>) {
-    val trend = status?.trend ?: Trend.STABLE
-    val avg = computeRecentAverage(history)
-    val arrow = when (trend) {
-        Trend.RISING  -> "↑"
-        Trend.FALLING -> "↓"
-        Trend.STABLE  -> "→"
+fun TrendIndicator(
+    status  : GasStatus?,
+    history : List<SensorReading>,
+    settings: com.instrument.domain.model.AppSettings,
+) {
+    val trend      = status?.trend ?: Trend.STABLE
+    val currentPpm = status?.reading?.ppm ?: 0f
+    val changeRate = computeChangeRate(history)
+    val prediction = changeRate?.let {
+        computeTimeToNextLevel(
+            currentPpm    = currentPpm,
+            trend         = trend,
+            ratePpmPerMin = it,
+            warningPpm    = settings.warningThresholdPpm.toFloat(),
+            dangerPpm     = settings.dangerThresholdPpm.toFloat(),
+            criticalPpm   = settings.criticalThresholdPpm.toFloat(),
+        )
     }
-    val color = when (trend) {
-        Trend.RISING  -> Color(0xFFFF5722)
-        Trend.FALLING -> Color(0xFF4CAF50)
-        Trend.STABLE  -> Color(0xFF9E9E9E)
-    }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 4.dp),
-    ) {
-        Text(text = arrow, fontSize = 28.sp, color = color)
-        Spacer(modifier = Modifier.width(8.dp))
-        Text("直近5件平均: ${"%.1f".format(avg)} ppm", style = MaterialTheme.typography.bodyMedium)
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                // トレンド変化時にアニメーションで矢印を切り替える
+                AnimatedContent(
+                    targetState = trend,
+                    label       = "trend_arrow",
+                    transitionSpec = {
+                        val up = targetState == Trend.RISING
+                        (fadeIn() + slideInVertically { if (up) it else -it }) togetherWith
+                            (fadeOut() + slideOutVertically { if (initialState == Trend.RISING) -it else it })
+                    },
+                ) { animatedTrend ->
+                    val arrowText  = when (animatedTrend) {
+                        Trend.RISING  -> "↑"
+                        Trend.FALLING -> "↓"
+                        Trend.STABLE  -> "→"
+                    }
+                    val arrowColor = when (animatedTrend) {
+                        Trend.RISING  -> Color(0xFFFF5722)
+                        Trend.FALLING -> Color(0xFF4CAF50)
+                        Trend.STABLE  -> Color(0xFF9E9E9E)
+                    }
+                    Text(arrowText, fontSize = 32.sp, color = arrowColor, fontWeight = FontWeight.Bold)
+                }
+                Column {
+                    val (trendLabel, trendColor) = when (trend) {
+                        Trend.RISING  -> "上昇中" to Color(0xFFFF5722)
+                        Trend.FALLING -> "下降中" to Color(0xFF4CAF50)
+                        Trend.STABLE  -> "安定"   to Color(0xFF9E9E9E)
+                    }
+                    Text(
+                        text  = trendLabel,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = trendColor,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    if (changeRate != null) {
+                        val sign = if (changeRate > 0f) "+" else ""
+                        Text(
+                            text  = "${sign}${"%.1f".format(changeRate)} ppm/分",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        val avg = computeRecentAverage(history)
+                        Text(
+                            text  = "直近平均: ${"%.1f".format(avg)} ppm",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            // 次のレベルへの到達予測を表示する (STABLE 以外かつ予測可能な場合のみ)
+            if (prediction != null) {
+                val (minutes, label) = prediction
+                val predictionColor = when (trend) {
+                    Trend.RISING  -> Color(0xFFFF5722)
+                    Trend.FALLING -> Color(0xFF4CAF50)
+                    Trend.STABLE  -> Color.Unspecified
+                }
+                val predictionText = when (trend) {
+                    Trend.RISING  -> "このまま上昇すると約 ${minutes.toInt()} 分後に $label レベルへ達する見込みです"
+                    Trend.FALLING -> "このまま下降すると約 ${minutes.toInt()} 分後に $label レベルへ低下する見込みです"
+                    Trend.STABLE  -> ""
+                }
+                if (predictionText.isNotEmpty()) {
+                    Text(
+                        text  = predictionText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = predictionColor.copy(alpha = 0.85f),
+                    )
+                }
+            }
+        }
     }
 }
 
