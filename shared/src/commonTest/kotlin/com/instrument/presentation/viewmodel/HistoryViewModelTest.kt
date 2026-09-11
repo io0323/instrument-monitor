@@ -54,7 +54,7 @@ class HistoryViewModelTest {
                 readingAt(LocalDate(2026, 7, 11), 8, 30, tz, 30f),
             )
         )
-        val vm = HistoryViewModel(repo, clock = FixedClock(now), timeZone = tz)
+        val vm = createViewModel(repo, clock = FixedClock(now), timeZone = tz)
 
         val collector = backgroundScope.launch { vm.readings.collect { } }
         vm.setDateFilter(DateFilter.TODAY)
@@ -78,7 +78,7 @@ class HistoryViewModelTest {
                 reading(epochMs = cutoff + 1, ppm = 30f),
             )
         )
-        val vm = HistoryViewModel(repo, clock = FixedClock(now), timeZone = tz)
+        val vm = createViewModel(repo, clock = FixedClock(now), timeZone = tz)
 
         val collector = backgroundScope.launch { vm.readings.collect { } }
         vm.setDateFilter(DateFilter.WEEK)
@@ -100,7 +100,7 @@ class HistoryViewModelTest {
                 readingAt(LocalDate(2026, 7, 10), 18, 0, tz, 30f),
             )
         )
-        val vm = HistoryViewModel(repo, clock = FixedClock(now), timeZone = tz)
+        val vm = createViewModel(repo, clock = FixedClock(now), timeZone = tz)
 
         val collector = backgroundScope.launch { vm.readings.collect { } }
         vm.setDateFilter(DateFilter.MONTH)
@@ -114,7 +114,7 @@ class HistoryViewModelTest {
     @Test
     fun exportCsv成功時はDoneになる() = runTest {
         val repo = FakeLogRepository(emptyList(), exportResult = Result.success("ppm,lat,lng"))
-        val vm = HistoryViewModel(repo)
+        val vm = createViewModel(repo)
 
         vm.exportCsv { csv -> Result.success("/tmp/history.csv?size=${csv.length}") }
         advanceUntilIdle()
@@ -128,7 +128,7 @@ class HistoryViewModelTest {
     @Test
     fun exportCsv失敗時はErrorになる() = runTest {
         val repo = FakeLogRepository(emptyList(), exportResult = Result.failure(IllegalStateException("db error")))
-        val vm = HistoryViewModel(repo)
+        val vm = createViewModel(repo)
 
         vm.exportCsv { Result.success("/tmp/history.csv") }
         advanceUntilIdle()
@@ -142,7 +142,7 @@ class HistoryViewModelTest {
     @Test
     fun export保存処理が失敗した場合はErrorになる() = runTest {
         val repo = FakeLogRepository(emptyList(), exportResult = Result.success("ppm,lat,lng"))
-        val vm = HistoryViewModel(repo)
+        val vm = createViewModel(repo)
 
         vm.exportCsv { Result.failure(IllegalStateException("save failed")) }
         advanceUntilIdle()
@@ -156,7 +156,7 @@ class HistoryViewModelTest {
     @Test
     fun export保存処理がメッセージなしで失敗した場合は既定文言になる() = runTest {
         val repo = FakeLogRepository(emptyList(), exportResult = Result.success("ppm,lat,lng"))
-        val vm = HistoryViewModel(repo)
+        val vm = createViewModel(repo)
 
         vm.exportCsv { Result.failure(IllegalStateException()) }
         advanceUntilIdle()
@@ -166,6 +166,15 @@ class HistoryViewModelTest {
             vm.exportState.value
         )
     }
+
+    /** テスト用ヘルパー: UseCase をデフォルト生成して HistoryViewModel を構築する */
+    private fun createViewModel(
+        repo: LogRepository,
+        exportCsvUseCase: ExportCsvUseCase = ExportCsvUseCase(repo),
+        deleteOldLogsUseCase: DeleteOldLogsUseCase = DeleteOldLogsUseCase(repo),
+        clock: Clock = Clock.System,
+        timeZone: TimeZone = TimeZone.currentSystemDefault(),
+    ): HistoryViewModel = HistoryViewModel(repo, exportCsvUseCase, deleteOldLogsUseCase, clock, timeZone)
 
     private class FixedClock(private val now: Instant) : Clock {
         override fun now(): Instant = now
@@ -200,7 +209,7 @@ class HistoryViewModelTest {
     @Test
     fun exportCsv完了後clearExportStateでIdleに戻る() = runTest {
         val repo = FakeLogRepository(emptyList(), exportResult = Result.success("ppm,lat,lng"))
-        val vm = HistoryViewModel(repo)
+        val vm = createViewModel(repo)
 
         vm.exportCsv { Result.success("/tmp/history.csv") }
         advanceUntilIdle()
@@ -214,7 +223,7 @@ class HistoryViewModelTest {
     @Test
     fun exportCsvエラー後clearExportStateでIdleに戻る() = runTest {
         val repo = FakeLogRepository(emptyList(), exportResult = Result.failure(RuntimeException("err")))
-        val vm = HistoryViewModel(repo)
+        val vm = createViewModel(repo)
 
         vm.exportCsv { Result.success("/tmp/history.csv") }
         advanceUntilIdle()
@@ -228,7 +237,7 @@ class HistoryViewModelTest {
     @Test
     fun deleteOldLogs成功時はDeleteStateDoneになる() = runTest {
         val repo = FakeLogRepository(emptyList())
-        val vm = HistoryViewModel(repo)
+        val vm = createViewModel(repo)
 
         vm.deleteOldLogs(daysToKeep = 30)
         advanceUntilIdle()
@@ -240,7 +249,7 @@ class HistoryViewModelTest {
     @Test
     fun deleteOldLogs失敗時はDeleteStateErrorになる() = runTest {
         val repo = FakeLogRepository(emptyList(), deleteResult = Result.failure(RuntimeException("削除失敗")))
-        val vm = HistoryViewModel(repo)
+        val vm = createViewModel(repo)
 
         vm.deleteOldLogs(daysToKeep = 30)
         advanceUntilIdle()
@@ -251,7 +260,7 @@ class HistoryViewModelTest {
     @Test
     fun deleteOldLogs完了後clearDeleteStateでIdleに戻る() = runTest {
         val repo = FakeLogRepository(emptyList())
-        val vm = HistoryViewModel(repo)
+        val vm = createViewModel(repo)
 
         vm.deleteOldLogs()
         advanceUntilIdle()
@@ -271,8 +280,8 @@ class HistoryViewModelTest {
         }
         val repo = FakeLogRepository(emptyList())
         val deleteUseCase = DeleteOldLogsUseCase(repo, fixedClock)
-        val vm = HistoryViewModel(
-            logRepo = repo,
+        val vm = createViewModel(
+            repo = repo,
             deleteOldLogsUseCase = deleteUseCase,
         )
 
@@ -286,7 +295,7 @@ class HistoryViewModelTest {
     @Test
     fun 初期deleteStateはIdleである() = runTest {
         val repo = FakeLogRepository(emptyList())
-        val vm = HistoryViewModel(repo)
+        val vm = createViewModel(repo)
 
         assertEquals(HistoryViewModel.DeleteState.Idle, vm.deleteState.value)
     }
@@ -294,7 +303,7 @@ class HistoryViewModelTest {
     @Test
     fun 初期exportStateはIdleである() = runTest {
         val repo = FakeLogRepository(emptyList())
-        val vm = HistoryViewModel(repo)
+        val vm = createViewModel(repo)
 
         assertEquals(HistoryViewModel.ExportState.Idle, vm.exportState.value)
     }
@@ -304,7 +313,7 @@ class HistoryViewModelTest {
     @Test
     fun データが空の場合statsはゼロを返す() = runTest {
         val repo = FakeLogRepository(emptyList())
-        val vm = HistoryViewModel(repo)
+        val vm = createViewModel(repo)
 
         val collector = backgroundScope.launch { vm.stats.collect { } }
         advanceUntilIdle()
@@ -322,7 +331,7 @@ class HistoryViewModelTest {
                 reading(epochMs = 2L, ppm = 300f),
             )
         )
-        val vm = HistoryViewModel(repo)
+        val vm = createViewModel(repo)
 
         val collector = backgroundScope.launch { vm.stats.collect { } }
         advanceUntilIdle()
@@ -339,7 +348,7 @@ class HistoryViewModelTest {
     @Test
     fun 初期levelFilterはALLである() = runTest {
         val repo = FakeLogRepository(emptyList())
-        val vm = HistoryViewModel(repo)
+        val vm = createViewModel(repo)
 
         assertEquals(LevelFilter.ALL, vm.levelFilter.value)
     }
@@ -366,7 +375,7 @@ class HistoryViewModelTest {
                 ),
             )
         )
-        val vm = HistoryViewModel(repo)
+        val vm = createViewModel(repo)
 
         val collector = backgroundScope.launch { vm.readings.collect { } }
         vm.setLevelFilter(LevelFilter.DANGER_PLUS)
@@ -386,7 +395,7 @@ class HistoryViewModelTest {
                 reading(epochMs = 1L, ppm = 250f),
             )
         )
-        val vm = HistoryViewModel(repo)
+        val vm = createViewModel(repo)
 
         val collector = backgroundScope.launch { vm.readings.collect { } }
         vm.setLevelFilter(LevelFilter.DANGER_PLUS)
@@ -422,7 +431,7 @@ class HistoryViewModelTest {
                 ),
             )
         )
-        val vm = HistoryViewModel(repo, clock = FixedClock(now), timeZone = tz)
+        val vm = createViewModel(repo, clock = FixedClock(now), timeZone = tz)
 
         val collector = backgroundScope.launch { vm.readings.collect { } }
         vm.setDateFilter(DateFilter.WEEK)
