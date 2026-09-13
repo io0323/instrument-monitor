@@ -45,8 +45,8 @@ data class ReadingStats(
 // 計測履歴の表示・CSV書き出し・古いログ削除を担う ViewModel
 class HistoryViewModel(
     private val logRepo: LogRepository,
-    private val exportCsvUseCase: ExportCsvUseCase = ExportCsvUseCase(logRepo),
-    private val deleteOldLogsUseCase: DeleteOldLogsUseCase = DeleteOldLogsUseCase(logRepo),
+    private val exportCsvUseCase: ExportCsvUseCase,
+    private val deleteOldLogsUseCase: DeleteOldLogsUseCase,
     private val clock: Clock = Clock.System,
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
 ) : ViewModel() {

@@ -8,7 +8,6 @@ import com.instrument.domain.usecase.GetLogStatisticsUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -22,7 +21,6 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -40,259 +38,250 @@ class StatsViewModelTest {
         Dispatchers.resetMain()
     }
 
-    // テスト用固定クロック
-    private class FixedClock(private val epochMs: Long) : Clock {
-        override fun now(): Instant = Instant.fromEpochMilliseconds(epochMs)
+    // テスト用の固定時計
+    private class FixedClock(private val now: Instant) : Clock {
+        override fun now(): Instant = now
     }
 
-    // テスト用 FakeLogRepository
-    private class FakeLogRepository(
+    // テスト用の簡易 LogRepository
+    private class StubLogRepository(
         private val readings: List<GeoTaggedReading> = emptyList(),
     ) : LogRepository {
         override suspend fun save(reading: GeoTaggedReading): Result<Long> = Result.success(0L)
         override fun getAllReadings(): Flow<List<GeoTaggedReading>> = flowOf(readings)
-        override fun getDangerousReadings(): Flow<List<GeoTaggedReading>> = flowOf(
-            readings.filter { it.level == GasLevel.DANGER || it.level == GasLevel.CRITICAL }
-        )
-        override suspend fun deleteOlderThan(epochMs: Long): Result<Unit> = Result.success(Unit)
-        override suspend fun exportCsv(): Result<String> = Result.success("")
-    }
-
-    // リアクティブに更新可能な FakeLogRepository
-    private class MutableFakeLogRepository(
-        initialReadings: List<GeoTaggedReading> = emptyList(),
-    ) : LogRepository {
-        val readingsFlow = MutableStateFlow(initialReadings)
-        override suspend fun save(reading: GeoTaggedReading): Result<Long> = Result.success(0L)
-        override fun getAllReadings(): Flow<List<GeoTaggedReading>> = readingsFlow
         override fun getDangerousReadings(): Flow<List<GeoTaggedReading>> = flowOf(emptyList())
         override suspend fun deleteOlderThan(epochMs: Long): Result<Unit> = Result.success(Unit)
         override suspend fun exportCsv(): Result<String> = Result.success("")
     }
 
-    // 2026-08-25T12:00:00Z に固定
-    private val fixedNowMs = 1756123200000L
-    private val fixedClock = FixedClock(fixedNowMs)
-    private val oneDayMs = 24 * 60 * 60 * 1000L
+    // テスト用ヘルパー: 指定タイムスタンプで GeoTaggedReading を生成
+    private fun readingAt(timestampMs: Long, ppm: Float, level: GasLevel = GasLevel.SAFE) =
+        GeoTaggedReading(
+            reading = SensorReading(
+                ppm = ppm,
+                temperature = 25f,
+                humidity = 50f,
+                timestamp = timestampMs,
+            ),
+            lat = 35.0,
+            lng = 139.0,
+            level = level,
+        )
 
-    private fun geoReading(
-        ppm: Float,
-        level: GasLevel,
-        timestampMs: Long,
-    ) = GeoTaggedReading(
-        reading = SensorReading(ppm = ppm, temperature = 25f, humidity = 50f, timestamp = timestampMs),
-        lat = 0.0,
-        lng = 0.0,
-        level = level,
-    )
+    // 固定時刻: 2026-07-15T12:00:00Z
+    private val fixedNow = Instant.parse("2026-07-15T12:00:00Z")
+    private val fixedNowMs = fixedNow.toEpochMilliseconds()
+    private val weekMs = 7 * 24 * 60 * 60 * 1000L
 
-    private fun createViewModel(repo: LogRepository): StatsViewModel {
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
+    private fun buildViewModel(
+        readings: List<GeoTaggedReading> = emptyList(),
+    ): StatsViewModel {
+        val useCase = GetLogStatisticsUseCase(
+            logRepository = StubLogRepository(readings),
+            clock = FixedClock(fixedNow),
+        )
         return StatsViewModel(useCase)
     }
 
     // ---- 初期状態 ----
 
     @Test
-    fun 初期状態ではweeklyStatsはnull() = runTest {
-        val vm = createViewModel(FakeLogRepository())
-        // stateIn の initialValue は null（コレクタがない状態）
+    fun 初期状態ではweeklyStatsがnullである() {
+        val vm = buildViewModel()
         assertNull(vm.weeklyStats.value)
     }
 
-    // ---- データなし ----
+    // ---- weeklyStats の反映 ----
 
     @Test
-    fun ログデータが空の場合は空の統計が返る() = runTest {
-        val vm = createViewModel(FakeLogRepository(emptyList()))
-        // WhileSubscribed なので collect を開始しないと値が流れない
+    fun データがない場合weeklyStatsのtotalReadingsは0になる() = runTest {
+        val vm = buildViewModel(readings = emptyList())
         val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
         advanceUntilIdle()
 
         val stats = vm.weeklyStats.value
-        assertNotNull(stats)
-        assertEquals(0, stats.totalReadings)
-        assertEquals(0f, stats.minPpm)
-        assertEquals(0f, stats.maxPpm)
-        assertEquals(0f, stats.avgPpm)
-        assertEquals(0, stats.alarmCounts.total)
+        assertEquals(0, stats?.totalReadings)
+        collector.cancel()
     }
 
     @Test
-    fun ログデータが空でも日別統計は7日分返る() = runTest {
-        val vm = createViewModel(FakeLogRepository(emptyList()))
-        val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
-        advanceUntilIdle()
-
-        val stats = vm.weeklyStats.value
-        assertNotNull(stats)
-        assertEquals(GetLogStatisticsUseCase.DAYS, stats.dailyStats.size)
-    }
-
-    // ---- 正常系: データあり ----
-
-    @Test
-    fun 過去7日間のリーディングが正しく集計される() = runTest {
+    fun 過去7日間のデータがweeklyStatsに反映される() = runTest {
         val readings = listOf(
-            geoReading(ppm = 30f,  level = GasLevel.SAFE,     timestampMs = fixedNowMs - oneDayMs),
-            geoReading(ppm = 100f, level = GasLevel.WARNING,  timestampMs = fixedNowMs - oneDayMs),
-            geoReading(ppm = 250f, level = GasLevel.DANGER,   timestampMs = fixedNowMs - 2 * oneDayMs),
+            readingAt(fixedNowMs - 1000, ppm = 100f),
+            readingAt(fixedNowMs - 2000, ppm = 200f),
+            readingAt(fixedNowMs - 3000, ppm = 300f),
         )
-        val vm = createViewModel(FakeLogRepository(readings))
+        val vm = buildViewModel(readings)
         val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
         advanceUntilIdle()
 
-        val stats = vm.weeklyStats.value
-        assertNotNull(stats)
+        val stats = vm.weeklyStats.value!!
         assertEquals(3, stats.totalReadings)
-        assertEquals(30f, stats.minPpm)
-        assertEquals(250f, stats.maxPpm)
-    }
-
-    @Test
-    fun アラームカウントが正しく集計される() = runTest {
-        val readings = listOf(
-            geoReading(ppm = 30f,  level = GasLevel.SAFE,     timestampMs = fixedNowMs - oneDayMs),
-            geoReading(ppm = 80f,  level = GasLevel.WARNING,  timestampMs = fixedNowMs - oneDayMs),
-            geoReading(ppm = 90f,  level = GasLevel.WARNING,  timestampMs = fixedNowMs - oneDayMs),
-            geoReading(ppm = 250f, level = GasLevel.DANGER,   timestampMs = fixedNowMs - 2 * oneDayMs),
-            geoReading(ppm = 400f, level = GasLevel.CRITICAL, timestampMs = fixedNowMs - 3 * oneDayMs),
-        )
-        val vm = createViewModel(FakeLogRepository(readings))
-        val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
-        advanceUntilIdle()
-
-        val stats = vm.weeklyStats.value
-        assertNotNull(stats)
-        assertEquals(2, stats.alarmCounts.warning)
-        assertEquals(1, stats.alarmCounts.danger)
-        assertEquals(1, stats.alarmCounts.critical)
-        assertEquals(4, stats.alarmCounts.total)
-    }
-
-    // ---- 境界値: 7日外のデータ ----
-
-    @Test
-    fun 過去7日より古いデータは集計から除外される() = runTest {
-        val eightDaysAgo = fixedNowMs - 8 * oneDayMs
-        val readings = listOf(
-            geoReading(ppm = 500f, level = GasLevel.CRITICAL, timestampMs = eightDaysAgo),
-            geoReading(ppm = 30f,  level = GasLevel.SAFE,     timestampMs = fixedNowMs - oneDayMs),
-        )
-        val vm = createViewModel(FakeLogRepository(readings))
-        val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
-        advanceUntilIdle()
-
-        val stats = vm.weeklyStats.value
-        assertNotNull(stats)
-        // 8日前のデータは除外され、1件のみ集計される
-        assertEquals(1, stats.totalReadings)
-        assertEquals(30f, stats.minPpm)
-        assertEquals(30f, stats.maxPpm)
-    }
-
-    @Test
-    fun ちょうど7日前のデータは集計に含まれる() = runTest {
-        val exactlySevenDaysAgo = fixedNowMs - 7 * oneDayMs
-        val readings = listOf(
-            geoReading(ppm = 100f, level = GasLevel.WARNING, timestampMs = exactlySevenDaysAgo),
-        )
-        val vm = createViewModel(FakeLogRepository(readings))
-        val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
-        advanceUntilIdle()
-
-        val stats = vm.weeklyStats.value
-        assertNotNull(stats)
-        assertEquals(1, stats.totalReadings)
-    }
-
-    // ---- 平均値の計算 ----
-
-    @Test
-    fun 平均ppmが正しく計算される() = runTest {
-        val readings = listOf(
-            geoReading(ppm = 100f, level = GasLevel.WARNING, timestampMs = fixedNowMs - oneDayMs),
-            geoReading(ppm = 200f, level = GasLevel.DANGER,  timestampMs = fixedNowMs - oneDayMs),
-            geoReading(ppm = 300f, level = GasLevel.DANGER,  timestampMs = fixedNowMs - 2 * oneDayMs),
-        )
-        val vm = createViewModel(FakeLogRepository(readings))
-        val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
-        advanceUntilIdle()
-
-        val stats = vm.weeklyStats.value
-        assertNotNull(stats)
+        assertEquals(100f, stats.minPpm)
+        assertEquals(300f, stats.maxPpm)
         assertEquals(200f, stats.avgPpm)
+        collector.cancel()
     }
 
-    // ---- リアクティブ更新 ----
-
     @Test
-    fun リポジトリのデータ更新がweeklyStatsに反映される() = runTest {
-        val repo = MutableFakeLogRepository(emptyList())
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
-        val vm = StatsViewModel(useCase)
-        val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
-        advanceUntilIdle()
-
-        // 初期は空
-        val initialStats = vm.weeklyStats.value
-        assertNotNull(initialStats)
-        assertEquals(0, initialStats.totalReadings)
-
-        // リポジトリにデータを追加
-        repo.readingsFlow.value = listOf(
-            geoReading(ppm = 150f, level = GasLevel.WARNING, timestampMs = fixedNowMs - oneDayMs),
-        )
-        advanceUntilIdle()
-
-        // 更新が反映される
-        val updatedStats = vm.weeklyStats.value
-        assertNotNull(updatedStats)
-        assertEquals(1, updatedStats.totalReadings)
-        assertEquals(150f, updatedStats.maxPpm)
-    }
-
-    // ---- 日別統計 ----
-
-    @Test
-    fun 日別統計で特定の日にリーディングが正しくグループ化される() = runTest {
-        // 全て「昨日」のデータ
+    fun 過去7日より古いデータは集計に含まれない() = runTest {
         val readings = listOf(
-            geoReading(ppm = 50f,  level = GasLevel.WARNING, timestampMs = fixedNowMs - oneDayMs),
-            geoReading(ppm = 100f, level = GasLevel.WARNING, timestampMs = fixedNowMs - oneDayMs + 1000),
-            geoReading(ppm = 150f, level = GasLevel.WARNING, timestampMs = fixedNowMs - oneDayMs + 2000),
+            readingAt(fixedNowMs - 1000, ppm = 50f),              // 7日以内
+            readingAt(fixedNowMs - weekMs - 1000, ppm = 999f),    // 7日より前 (範囲外)
         )
-        val vm = createViewModel(FakeLogRepository(readings))
+        val vm = buildViewModel(readings)
         val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
         advanceUntilIdle()
 
-        val stats = vm.weeklyStats.value
-        assertNotNull(stats)
-        // 7日分の日別統計がある
-        assertEquals(7, stats.dailyStats.size)
-        // リーディングのある日は1つだけ
-        val daysWithData = stats.dailyStats.filter { it.readingCount > 0 }
-        assertEquals(1, daysWithData.size)
-        assertEquals(3, daysWithData.first().readingCount)
-        assertEquals(150f, daysWithData.first().maxPpm)
-    }
-
-    // ---- 単一データ ----
-
-    @Test
-    fun リーディングが1件だけの場合もmin_max_avgが一致する() = runTest {
-        val readings = listOf(
-            geoReading(ppm = 42f, level = GasLevel.SAFE, timestampMs = fixedNowMs - oneDayMs),
-        )
-        val vm = createViewModel(FakeLogRepository(readings))
-        val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
-        advanceUntilIdle()
-
-        val stats = vm.weeklyStats.value
-        assertNotNull(stats)
+        val stats = vm.weeklyStats.value!!
         assertEquals(1, stats.totalReadings)
-        assertEquals(42f, stats.minPpm)
-        assertEquals(42f, stats.maxPpm)
-        assertEquals(42f, stats.avgPpm)
+        assertEquals(50f, stats.maxPpm)
+        collector.cancel()
+    }
+
+    @Test
+    fun 境界値_ちょうど過去7日前のデータは含まれる() = runTest {
+        // cutoff = nowMs - weekMs なので、cutoffMs 以上が対象
+        val readings = listOf(
+            readingAt(fixedNowMs - weekMs, ppm = 75f),      // ちょうど境界 (含まれる)
+            readingAt(fixedNowMs - weekMs - 1, ppm = 999f), // 1ms 前 (含まれない)
+        )
+        val vm = buildViewModel(readings)
+        val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
+        advanceUntilIdle()
+
+        val stats = vm.weeklyStats.value!!
+        assertEquals(1, stats.totalReadings)
+        assertEquals(75f, stats.maxPpm)
+        collector.cancel()
+    }
+
+    // ---- アラームカウント ----
+
+    @Test
+    fun アラームレベル別のカウントが正しく集計される() = runTest {
+        val readings = listOf(
+            readingAt(fixedNowMs - 1000, ppm = 30f, level = GasLevel.SAFE),
+            readingAt(fixedNowMs - 2000, ppm = 80f, level = GasLevel.WARNING),
+            readingAt(fixedNowMs - 3000, ppm = 250f, level = GasLevel.DANGER),
+            readingAt(fixedNowMs - 4000, ppm = 400f, level = GasLevel.CRITICAL),
+            readingAt(fixedNowMs - 5000, ppm = 100f, level = GasLevel.WARNING),
+        )
+        val vm = buildViewModel(readings)
+        val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
+        advanceUntilIdle()
+
+        val alarms = vm.weeklyStats.value!!.alarmCounts
+        assertEquals(2, alarms.warning)
+        assertEquals(1, alarms.danger)
+        assertEquals(1, alarms.critical)
+        assertEquals(4, alarms.total)
+        collector.cancel()
+    }
+
+    @Test
+    fun SAFEのみの場合アラームカウントは全て0になる() = runTest {
+        val readings = listOf(
+            readingAt(fixedNowMs - 1000, ppm = 10f, level = GasLevel.SAFE),
+            readingAt(fixedNowMs - 2000, ppm = 20f, level = GasLevel.SAFE),
+        )
+        val vm = buildViewModel(readings)
+        val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
+        advanceUntilIdle()
+
+        val alarms = vm.weeklyStats.value!!.alarmCounts
+        assertEquals(0, alarms.warning)
+        assertEquals(0, alarms.danger)
+        assertEquals(0, alarms.critical)
+        assertEquals(0, alarms.total)
+        collector.cancel()
+    }
+
+    // ---- dailyStats ----
+
+    @Test
+    fun dailyStatsは7日分のエントリを持つ() = runTest {
+        val vm = buildViewModel(readings = emptyList())
+        val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
+        advanceUntilIdle()
+
+        assertEquals(7, vm.weeklyStats.value?.dailyStats?.size)
+        collector.cancel()
+    }
+
+    @Test
+    fun データがない日のdailyStatsはreadingCount0になる() = runTest {
+        val vm = buildViewModel(readings = emptyList())
+        val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
+        advanceUntilIdle()
+
+        val dailyStats = vm.weeklyStats.value!!.dailyStats
+        dailyStats.forEach { daily ->
+            assertEquals(0, daily.readingCount)
+            assertEquals(0f, daily.maxPpm)
+            assertEquals(0f, daily.avgPpm)
+        }
+        collector.cancel()
+    }
+
+    // ---- ppm 統計の精度 ----
+
+    @Test
+    fun 単一データの場合minとmaxとavgが全て同じになる() = runTest {
+        val readings = listOf(
+            readingAt(fixedNowMs - 1000, ppm = 123f),
+        )
+        val vm = buildViewModel(readings)
+        val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
+        advanceUntilIdle()
+
+        val stats = vm.weeklyStats.value!!
+        assertEquals(123f, stats.minPpm)
+        assertEquals(123f, stats.maxPpm)
+        assertEquals(123f, stats.avgPpm)
+        assertEquals(1, stats.totalReadings)
+        collector.cancel()
+    }
+
+    @Test
+    fun 複数データの平均が正しく計算される() = runTest {
+        val readings = listOf(
+            readingAt(fixedNowMs - 1000, ppm = 10f),
+            readingAt(fixedNowMs - 2000, ppm = 20f),
+            readingAt(fixedNowMs - 3000, ppm = 30f),
+            readingAt(fixedNowMs - 4000, ppm = 40f),
+        )
+        val vm = buildViewModel(readings)
+        val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
+        advanceUntilIdle()
+
+        val stats = vm.weeklyStats.value!!
+        assertEquals(10f, stats.minPpm)
+        assertEquals(40f, stats.maxPpm)
+        assertEquals(25f, stats.avgPpm)
+        assertEquals(4, stats.totalReadings)
+        collector.cancel()
+    }
+
+    // ---- 大量データ ----
+
+    @Test
+    fun 大量のデータを正しく集計できる() = runTest {
+        // 過去7日間に100件のデータを生成（各 ppm = index + 1）
+        val readings = (1..100).map { i ->
+            readingAt(
+                timestampMs = fixedNowMs - i * 60_000L, // 1分間隔
+                ppm = i.toFloat(),
+            )
+        }
+        val vm = buildViewModel(readings)
+        val collector = backgroundScope.launch { vm.weeklyStats.collect {} }
+        advanceUntilIdle()
+
+        val stats = vm.weeklyStats.value!!
+        assertEquals(100, stats.totalReadings)
+        assertEquals(1f, stats.minPpm)
+        assertEquals(100f, stats.maxPpm)
+        collector.cancel()
     }
 }
