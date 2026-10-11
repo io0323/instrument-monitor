@@ -16,6 +16,7 @@ import com.instrument.domain.usecase.AlarmUseCase
 import com.instrument.domain.usecase.ConnectDeviceUseCase
 import com.instrument.domain.usecase.LogMeasurementUseCase
 import com.instrument.domain.usecase.MonitorGasUseCase
+import com.instrument.domain.usecase.SessionStatsUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -498,6 +499,7 @@ class DashboardViewModelTest {
             connectDevice = connectDeviceUseCase,
             logMeasurement = logMeasurementUseCase,
             settingsRepo = InMemorySettingsRepository(),
+            sessionStatsUseCase = SessionStatsUseCase(),
         )
 
         suspend fun emitPpm(ppm: Float) {

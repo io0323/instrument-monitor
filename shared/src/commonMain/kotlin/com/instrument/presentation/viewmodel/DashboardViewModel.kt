@@ -42,7 +42,7 @@ class DashboardViewModel(
     private val connectDevice     : ConnectDeviceUseCase,
     private val logMeasurement    : LogMeasurementUseCase,
     private val settingsRepo      : SettingsRepository,
-    private val sessionStatsUseCase: SessionStatsUseCase = SessionStatsUseCase(),
+    private val sessionStatsUseCase: SessionStatsUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
