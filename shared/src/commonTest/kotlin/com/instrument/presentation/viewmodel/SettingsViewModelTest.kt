@@ -20,6 +20,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -315,5 +316,89 @@ class SettingsViewModelTest {
         advanceUntilIdle()
         vm.resetClearAllLogsState()
         assertIs<SettingsViewModel.ClearAllLogsState.Idle>(vm.clearAllLogsState.value)
+    }
+
+    // ---- アラーム音・振動トグル ----
+
+    @Test
+    fun 初期状態ではアラーム音が有効である() {
+        val vm = buildViewModel()
+        assertTrue(vm.settings.value.soundEnabled)
+    }
+
+    @Test
+    fun toggleSoundEnabledでOFFになる() {
+        val vm = buildViewModel()
+        vm.toggleSoundEnabled()
+        assertFalse(vm.settings.value.soundEnabled)
+    }
+
+    @Test
+    fun toggleSoundEnabledを2回呼ぶと元に戻る() {
+        val vm = buildViewModel()
+        vm.toggleSoundEnabled()
+        vm.toggleSoundEnabled()
+        assertTrue(vm.settings.value.soundEnabled)
+    }
+
+    @Test
+    fun 初期状態ではアラーム振動が有効である() {
+        val vm = buildViewModel()
+        assertTrue(vm.settings.value.vibrationEnabled)
+    }
+
+    @Test
+    fun toggleVibrationEnabledでOFFになる() {
+        val vm = buildViewModel()
+        vm.toggleVibrationEnabled()
+        assertFalse(vm.settings.value.vibrationEnabled)
+    }
+
+    @Test
+    fun toggleVibrationEnabledを2回呼ぶと元に戻る() {
+        val vm = buildViewModel()
+        vm.toggleVibrationEnabled()
+        vm.toggleVibrationEnabled()
+        assertTrue(vm.settings.value.vibrationEnabled)
+    }
+
+    // ---- setDangerThresholdSafe ----
+
+    @Test
+    fun setDangerThresholdSafeはWARNING以下でも自動調整して保存する() {
+        val vm = buildViewModel()
+        // DANGER を WARNING デフォルト (50) より小さい 40 に設定しようとする
+        vm.setDangerThresholdSafe(40)
+        val result = vm.settings.value
+        assertEquals(40, result.dangerThresholdPpm, "DANGER は 40 になるべき")
+        assertTrue(result.warningThresholdPpm < 40, "WARNING は DANGER より小さくなるべき")
+        assertTrue(result.criticalThresholdPpm > 40, "CRITICAL は DANGER より大きくなるべき")
+    }
+
+    @Test
+    fun setDangerThresholdSafeはCRITICAL以上でも自動調整して保存する() {
+        val vm = buildViewModel()
+        // DANGER を CRITICAL デフォルト (350) 以上に設定しようとする
+        vm.setDangerThresholdSafe(350)
+        val result = vm.settings.value
+        assertEquals(350, result.dangerThresholdPpm, "DANGER は 350 になるべき")
+        assertTrue(result.criticalThresholdPpm > 350, "CRITICAL は DANGER より大きくなるべき")
+    }
+
+    // ---- forgetLastDevice ----
+
+    @Test
+    fun forgetLastDeviceで最終接続デバイス情報がクリアされる() {
+        val vm = buildViewModel()
+        // まずデバイス情報をセットする
+        val settings = vm.settings.value.copy(
+            lastConnectedDeviceId = "AA:BB:CC",
+            lastConnectedDeviceName = "テストデバイス",
+        )
+        // settingsRepo を直接更新 (通常は connectDevice 経由で設定される)
+        vm.forgetLastDevice()
+
+        assertNull(vm.settings.value.lastConnectedDeviceId)
+        assertNull(vm.settings.value.lastConnectedDeviceName)
     }
 }

@@ -53,6 +53,8 @@ class DashboardViewModel(
 
     private val _recentHistory = MutableStateFlow<List<SensorReading>>(emptyList())
     val recentHistory: StateFlow<List<SensorReading>> = _recentHistory.asStateFlow()
+    // startMonitoring() 内で毎回リストから ArrayDeque を再生成するコストを避けるためフィールドとして保持する
+    private val recentDeque = ArrayDeque<SensorReading>()
 
     private val _sessionStats = MutableStateFlow<SessionStats?>(null)
     val sessionStats: StateFlow<SessionStats?> = _sessionStats.asStateFlow()
@@ -183,6 +185,7 @@ class DashboardViewModel(
 
     private fun startMonitoring() {
         monitorJob?.cancel()
+        recentDeque.clear()
         monitorJob = viewModelScope.launch {
             alarmUseCase.observe().collect { status ->
                 // DANGER 以上は GPS 座標と紐付けて自動ロギング
@@ -221,13 +224,12 @@ class DashboardViewModel(
                     startSnoozeCountdown()
                 }
                 // 直近60件の読み取り履歴を保持
-                val deque = ArrayDeque(_recentHistory.value)
-                if (deque.size >= 60) deque.removeFirst()
-                deque.addLast(status.reading)
-                val updated = deque.toList()
-                _recentHistory.value = updated
+                if (recentDeque.size >= 60) recentDeque.removeFirst()
+                recentDeque.addLast(status.reading)
+                val snapshot = recentDeque.toList()
+                _recentHistory.value = snapshot
                 // カスタム閾値を反映した統計サマリをリアルタイムで更新する
-                _sessionStats.value = sessionStatsUseCase.compute(updated, settingsRepo.settings.value)
+                _sessionStats.value = sessionStatsUseCase.compute(snapshot, settingsRepo.settings.value)
             }
         }
     }

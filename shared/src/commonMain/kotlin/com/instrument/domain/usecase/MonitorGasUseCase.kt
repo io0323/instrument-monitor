@@ -11,8 +11,7 @@ import kotlinx.coroutines.flow.scan
 
 class MonitorGasUseCase(
     private val repo: BleRepository,
-    // テストやデフォルト用途でも動作するようデフォルト実装を使用する
-    private val settingsRepo: SettingsRepository = SettingsRepository.default(),
+    private val settingsRepo: SettingsRepository,
 ) {
 
     operator fun invoke(): Flow<GasStatus> = repo.observeSensorData()
