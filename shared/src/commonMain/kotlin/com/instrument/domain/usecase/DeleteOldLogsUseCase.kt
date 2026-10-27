@@ -6,7 +6,7 @@ import kotlinx.datetime.Clock
 // 指定日数より古い計測ログを一括削除するユースケース
 class DeleteOldLogsUseCase(
     private val logRepo: LogRepository,
-    private val clock: Clock = Clock.System,
+    private val clock: Clock,
 ) {
     /**
      * [daysToKeep] 日分のログを保持し、それより古いレコードを削除する。

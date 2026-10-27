@@ -17,6 +17,7 @@ import com.instrument.domain.usecase.ConnectDeviceUseCase
 import com.instrument.domain.usecase.LogMeasurementUseCase
 import com.instrument.domain.usecase.MonitorGasUseCase
 import com.instrument.domain.usecase.SessionStatsUseCase
+import kotlinx.datetime.Clock
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -576,7 +577,7 @@ class DashboardViewModelTest {
 
         val vmSettingsRepo = InMemorySettingsRepository()
         private val monitorGasUseCase = MonitorGasUseCase(bleRepo, vmSettingsRepo)
-        private val alarmUseCase = AlarmUseCase(monitorGasUseCase, alarmController, vmSettingsRepo)
+        private val alarmUseCase = AlarmUseCase(monitorGasUseCase, alarmController, vmSettingsRepo, Clock.System)
         private val connectDeviceUseCase = ConnectDeviceUseCase(bleRepo)
         private val logMeasurementUseCase = LogMeasurementUseCase(logRepo, gpsRepo)
 

@@ -15,11 +15,17 @@ import com.instrument.presentation.viewmodel.DeviceListViewModel
 import com.instrument.presentation.viewmodel.HistoryViewModel
 import com.instrument.presentation.viewmodel.SettingsViewModel
 import com.instrument.presentation.viewmodel.StatsViewModel
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
 import org.koin.dsl.module
 
 val domainModule = module {
     // SettingsRepository は各プラットフォームの bleModule で登録する
     // (Android: SharedPreferencesSettings / iOS: NSUserDefaultsSettings)
+
+    // テスト時に固定クロック・固定タイムゾーンへ差し替え可能にするため Koin で管理する
+    single<Clock> { Clock.System }
+    single<TimeZone> { TimeZone.currentSystemDefault() }
 
     // SettingsRepository を注入してカスタム閾値をリアルタイムに適用する
     factory { MonitorGasUseCase(get(), get()) }
@@ -27,14 +33,14 @@ val domainModule = module {
     factory { ScanDevicesUseCase(get()) }
     factory { LogMeasurementUseCase(get(), get()) }
     // シングルトンにしてBroadcastReceiverとViewModelで同一インスタンスを共有する
-    single { AlarmUseCase(get(), get(), get()) }
-    factory { DeleteOldLogsUseCase(get()) }
+    single { AlarmUseCase(get(), get(), get(), get()) }
+    factory { DeleteOldLogsUseCase(get(), get()) }
     // ExportCsvUseCase を Koin 管理下に置き、HistoryViewModel へ適切に注入する
     factory { ExportCsvUseCase(get()) }
     // 依存なしの純粋ユースケース
     factory { SessionStatsUseCase() }
     // LogRepository を使って週間ログ統計を集計する
-    factory { GetLogStatisticsUseCase(get()) }
+    factory { GetLogStatisticsUseCase(get(), get(), get()) }
     // 全計測ログを一括削除する
     factory { ClearAllLogsUseCase(get()) }
 }
@@ -43,7 +49,7 @@ val viewModelModule = module {
     factory { DashboardViewModel(get(), get(), get(), get(), get()) }
     factory { DeviceListViewModel(get(), get()) }
     // ExportCsvUseCase・DeleteOldLogsUseCase を Koin から受け取るよう明示的に注入する
-    factory { HistoryViewModel(get(), get(), get()) }
+    factory { HistoryViewModel(get(), get(), get(), get(), get()) }
     factory { SettingsViewModel(get(), get()) }
     factory { StatsViewModel(get()) }
 }

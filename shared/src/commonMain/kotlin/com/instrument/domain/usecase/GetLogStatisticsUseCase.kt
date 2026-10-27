@@ -21,7 +21,8 @@ import kotlinx.datetime.toLocalDateTime
  */
 class GetLogStatisticsUseCase(
     private val logRepository: LogRepository,
-    private val clock: Clock = Clock.System,
+    private val clock: Clock,
+    private val timeZone: TimeZone,
 ) {
 
     companion object {
@@ -62,7 +63,7 @@ class GetLogStatisticsUseCase(
         )
 
         // 日別集計 (過去 DAYS 日分)
-        val tz = TimeZone.currentSystemDefault()
+        val tz = timeZone
         val readingsByDay = readings.groupBy { reading ->
             // epoch ms → ローカル日付の dayOfWeek (0=Sun .. 6=Sat)
             val localDate = Instant.fromEpochMilliseconds(reading.reading.timestamp)
@@ -108,7 +109,7 @@ class GetLogStatisticsUseCase(
 
     /** データが空の場合に使う、過去 DAYS 日分の空エントリを生成する。 */
     private fun buildEmptyDailyStats(nowMs: Long): List<DailyPpmStats> {
-        val tz = TimeZone.currentSystemDefault()
+        val tz = timeZone
         return (DAYS - 1 downTo 0).map { offsetDays ->
             val targetMs = nowMs - offsetDays * 24 * 60 * 60 * 1000L
             val targetDate = Instant.fromEpochMilliseconds(targetMs).toLocalDateTime(tz).date

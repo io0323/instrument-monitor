@@ -29,6 +29,7 @@ class AlarmUseCaseTest {
     }
 
     private val settingsRepo: SettingsRepository = InMemorySettingsRepository()
+    private val defaultClock: Clock = Clock.System
 
     private fun fakeMonitor(vararg ppms: Float): MonitorGasUseCase {
         val repo = object : BleRepository {
@@ -51,7 +52,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(fakeMonitor(30f), controller, settingsRepo).observe().toList()
+        AlarmUseCase(fakeMonitor(30f), controller, settingsRepo, defaultClock).observe().toList()
 
         assertTrue(triggeredLevels.isEmpty())
         assertEquals(1, dismissCount)
@@ -66,7 +67,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(fakeMonitor(100f, 120f), controller, settingsRepo).observe().toList()
+        AlarmUseCase(fakeMonitor(100f, 120f), controller, settingsRepo, defaultClock).observe().toList()
 
         assertEquals(listOf(GasLevel.WARNING), triggeredLevels)
     }
@@ -80,7 +81,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(fakeMonitor(100f, 250f), controller, settingsRepo).observe().toList()
+        AlarmUseCase(fakeMonitor(100f, 250f), controller, settingsRepo, defaultClock).observe().toList()
 
         assertEquals(listOf(GasLevel.WARNING, GasLevel.DANGER), triggeredLevels)
     }
@@ -94,7 +95,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(fakeMonitor(380f), controller, settingsRepo).observe().toList()
+        AlarmUseCase(fakeMonitor(380f), controller, settingsRepo, defaultClock).observe().toList()
 
         assertEquals(listOf(GasLevel.CRITICAL), triggeredLevels)
     }
@@ -109,7 +110,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(fakeMonitor(30f, 100f), controller, settingsRepo).observe().toList()
+        AlarmUseCase(fakeMonitor(30f, 100f), controller, settingsRepo, defaultClock).observe().toList()
 
         assertEquals(1, dismissCount)
         assertEquals(listOf(GasLevel.WARNING), triggeredLevels)
@@ -125,7 +126,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(fakeMonitor(100f, 30f, 100f), controller, settingsRepo).observe().toList()
+        AlarmUseCase(fakeMonitor(100f, 30f, 100f), controller, settingsRepo, defaultClock).observe().toList()
 
         assertEquals(1, dismissCount, "SAFE (ppm=30f) で dismiss が1回呼ばれるべき")
         assertEquals(
@@ -144,7 +145,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(fakeMonitor(250f, 30f, 250f), controller, settingsRepo).observe().toList()
+        AlarmUseCase(fakeMonitor(250f, 30f, 250f), controller, settingsRepo, defaultClock).observe().toList()
 
         assertEquals(
             listOf(GasLevel.DANGER, GasLevel.DANGER),
@@ -162,7 +163,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(fakeMonitor(100f, 250f, 380f), controller, settingsRepo).observe().toList()
+        AlarmUseCase(fakeMonitor(100f, 250f, 380f), controller, settingsRepo, defaultClock).observe().toList()
 
         assertEquals(
             listOf(GasLevel.WARNING, GasLevel.DANGER, GasLevel.CRITICAL),
@@ -178,7 +179,7 @@ class AlarmUseCaseTest {
             override fun dismiss() {}
             override fun release() { releaseCount++ }
         }
-        val useCase = AlarmUseCase(fakeMonitor(), controller, settingsRepo)
+        val useCase = AlarmUseCase(fakeMonitor(), controller, settingsRepo, defaultClock)
 
         useCase.release()
 
@@ -192,7 +193,7 @@ class AlarmUseCaseTest {
             override fun dismiss() {}
             override fun release() {}
         }
-        val useCase = AlarmUseCase(fakeMonitor(30f), controller, settingsRepo)
+        val useCase = AlarmUseCase(fakeMonitor(30f), controller, settingsRepo, defaultClock)
         useCase.observe().toList()
 
         useCase.dismiss()
