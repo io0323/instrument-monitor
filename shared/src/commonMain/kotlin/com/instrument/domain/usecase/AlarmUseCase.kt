@@ -13,8 +13,7 @@ class AlarmUseCase(
     private val monitor: MonitorGasUseCase,
     private val controller: AlarmController,
     private val settingsRepo: SettingsRepository,
-    // テスト時に固定クロックを差し込めるよう DI 可能にする
-    private val clock: Clock = Clock.System,
+    private val clock: Clock,
 ) {
     private var lastAlarmTime  = 0L
     private var lastAlarmLevel: GasLevel? = null

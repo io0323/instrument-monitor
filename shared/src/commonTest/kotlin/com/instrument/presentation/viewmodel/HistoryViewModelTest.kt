@@ -171,8 +171,8 @@ class HistoryViewModelTest {
     private fun createViewModel(
         repo: LogRepository,
         exportCsvUseCase: ExportCsvUseCase = ExportCsvUseCase(repo),
-        deleteOldLogsUseCase: DeleteOldLogsUseCase = DeleteOldLogsUseCase(repo),
         clock: Clock = Clock.System,
+        deleteOldLogsUseCase: DeleteOldLogsUseCase = DeleteOldLogsUseCase(repo, clock),
         timeZone: TimeZone = TimeZone.currentSystemDefault(),
     ): HistoryViewModel = HistoryViewModel(repo, exportCsvUseCase, deleteOldLogsUseCase, clock, timeZone)
 

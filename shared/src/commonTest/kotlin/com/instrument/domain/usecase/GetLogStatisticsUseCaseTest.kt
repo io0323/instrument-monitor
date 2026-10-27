@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -38,6 +39,7 @@ class GetLogStatisticsUseCaseTest {
     // "現在" を 2026-08-25T12:00:00Z (1756123200000L) に固定
     private val fixedNowMs = 1756123200000L
     private val fixedClock = FixedClock(fixedNowMs)
+    private val fixedTimeZone = TimeZone.UTC
     private val oneDayMs = 24 * 60 * 60 * 1000L
     private val sevenDaysMs = 7 * oneDayMs
 
@@ -57,7 +59,7 @@ class GetLogStatisticsUseCaseTest {
     @Test
     fun データなしの場合は空統計を返す() = runTest {
         val repo = FakeLogRepository(emptyList())
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
+        val useCase = GetLogStatisticsUseCase(repo, fixedClock, fixedTimeZone)
 
         val result = useCase.getWeeklyStats().first()
 
@@ -71,7 +73,7 @@ class GetLogStatisticsUseCaseTest {
     @Test
     fun データなしでも日別統計は7件返る() = runTest {
         val repo = FakeLogRepository(emptyList())
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
+        val useCase = GetLogStatisticsUseCase(repo, fixedClock, fixedTimeZone)
 
         val result = useCase.getWeeklyStats().first()
 
@@ -85,7 +87,7 @@ class GetLogStatisticsUseCaseTest {
         val oldTimestamp = fixedNowMs - sevenDaysMs - 1L   // 7日と1ms前 → 除外
         val readings = listOf(geoReading(300f, GasLevel.DANGER, oldTimestamp))
         val repo = FakeLogRepository(readings)
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
+        val useCase = GetLogStatisticsUseCase(repo, fixedClock, fixedTimeZone)
 
         val result = useCase.getWeeklyStats().first()
 
@@ -97,7 +99,7 @@ class GetLogStatisticsUseCaseTest {
         val cutoffMs = fixedNowMs - sevenDaysMs
         val readings = listOf(geoReading(100f, GasLevel.WARNING, cutoffMs))
         val repo = FakeLogRepository(readings)
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
+        val useCase = GetLogStatisticsUseCase(repo, fixedClock, fixedTimeZone)
 
         val result = useCase.getWeeklyStats().first()
 
@@ -113,7 +115,7 @@ class GetLogStatisticsUseCaseTest {
             geoReading(400f, GasLevel.CRITICAL, oldMs),
         )
         val repo = FakeLogRepository(readings)
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
+        val useCase = GetLogStatisticsUseCase(repo, fixedClock, fixedTimeZone)
 
         val result = useCase.getWeeklyStats().first()
 
@@ -132,7 +134,7 @@ class GetLogStatisticsUseCaseTest {
             geoReading(150f, GasLevel.WARNING,  nowMs - 3_000L),
         )
         val repo = FakeLogRepository(readings)
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
+        val useCase = GetLogStatisticsUseCase(repo, fixedClock, fixedTimeZone)
 
         val result = useCase.getWeeklyStats().first()
 
@@ -148,7 +150,7 @@ class GetLogStatisticsUseCaseTest {
             geoReading(380f, GasLevel.CRITICAL, nowMs - 3_000L),
         )
         val repo = FakeLogRepository(readings)
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
+        val useCase = GetLogStatisticsUseCase(repo, fixedClock, fixedTimeZone)
 
         val result = useCase.getWeeklyStats().first()
 
@@ -164,7 +166,7 @@ class GetLogStatisticsUseCaseTest {
             geoReading(300f, GasLevel.DANGER,  nowMs - 3_000L),
         )
         val repo = FakeLogRepository(readings)
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
+        val useCase = GetLogStatisticsUseCase(repo, fixedClock, fixedTimeZone)
 
         val result = useCase.getWeeklyStats().first()
 
@@ -182,7 +184,7 @@ class GetLogStatisticsUseCaseTest {
             geoReading(90f,  GasLevel.WARNING, nowMs - 2_000L),
         )
         val repo = FakeLogRepository(readings)
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
+        val useCase = GetLogStatisticsUseCase(repo, fixedClock, fixedTimeZone)
 
         val result = useCase.getWeeklyStats().first()
 
@@ -202,7 +204,7 @@ class GetLogStatisticsUseCaseTest {
             geoReading(380f, GasLevel.CRITICAL, nowMs - 4_000L),
         )
         val repo = FakeLogRepository(readings)
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
+        val useCase = GetLogStatisticsUseCase(repo, fixedClock, fixedTimeZone)
 
         val result = useCase.getWeeklyStats().first()
 
@@ -218,7 +220,7 @@ class GetLogStatisticsUseCaseTest {
             geoReading(10f, GasLevel.SAFE, fixedNowMs - 1_000L),
         )
         val repo = FakeLogRepository(readings)
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
+        val useCase = GetLogStatisticsUseCase(repo, fixedClock, fixedTimeZone)
 
         val result = useCase.getWeeklyStats().first()
 
@@ -234,7 +236,7 @@ class GetLogStatisticsUseCaseTest {
             geoReading(200f, GasLevel.DANGER, fixedNowMs - 1_000L),
         )
         val repo = FakeLogRepository(readings)
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
+        val useCase = GetLogStatisticsUseCase(repo, fixedClock, fixedTimeZone)
 
         val result = useCase.getWeeklyStats().first()
 
@@ -248,7 +250,7 @@ class GetLogStatisticsUseCaseTest {
             geoReading(200f, GasLevel.DANGER, fixedNowMs - 1_000L),
         )
         val repo = FakeLogRepository(readings)
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
+        val useCase = GetLogStatisticsUseCase(repo, fixedClock, fixedTimeZone)
 
         val result = useCase.getWeeklyStats().first()
 
@@ -267,7 +269,7 @@ class GetLogStatisticsUseCaseTest {
             geoReading(200f, GasLevel.DANGER,  todayMs - 2_000L),
         )
         val repo = FakeLogRepository(readings)
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
+        val useCase = GetLogStatisticsUseCase(repo, fixedClock, fixedTimeZone)
 
         val result = useCase.getWeeklyStats().first()
 
@@ -285,7 +287,7 @@ class GetLogStatisticsUseCaseTest {
             geoReading(300f, GasLevel.CRITICAL, nowMs - 3_000L),
         )
         val repo = FakeLogRepository(readings)
-        val useCase = GetLogStatisticsUseCase(repo, fixedClock)
+        val useCase = GetLogStatisticsUseCase(repo, fixedClock, fixedTimeZone)
 
         val result = useCase.getWeeklyStats().first()
 

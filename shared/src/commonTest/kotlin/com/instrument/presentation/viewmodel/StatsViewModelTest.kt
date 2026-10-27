@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -79,6 +80,7 @@ class StatsViewModelTest {
         val useCase = GetLogStatisticsUseCase(
             logRepository = StubLogRepository(readings),
             clock = FixedClock(fixedNow),
+            timeZone = TimeZone.UTC,
         )
         return StatsViewModel(useCase)
     }
