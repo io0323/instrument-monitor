@@ -450,6 +450,91 @@ class DashboardViewModelTest {
         )
     }
 
+    // ---- forgetLastDevice テスト ----
+
+    @Test
+    fun forgetLastDeviceでlastConnected情報がクリアされる() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        // 接続してデバイス情報を記憶する
+        vm.connectDevice("target-device", "ガス検知器A")
+        fixture.emitConnectionState(BleConnectionState.Connected)
+        advanceUntilIdle()
+
+        assertEquals("target-device", vm.uiState.value.lastConnectedDeviceId)
+        assertEquals("ガス検知器A", vm.uiState.value.lastConnectedDeviceName)
+
+        // forgetLastDevice を呼ぶ
+        vm.forgetLastDevice()
+        advanceUntilIdle()
+
+        assertNull(vm.uiState.value.lastConnectedDeviceId)
+        assertNull(vm.uiState.value.lastConnectedDeviceName)
+    }
+
+    // ---- スヌーズテスト ----
+
+    @Test
+    fun snoozeAlarmでisAlarmActiveがfalseになりisSnoozedがtrueになる() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        // CRITICAL でアラーム発動
+        fixture.emitPpm(380f)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.isAlarmActive)
+
+        // スヌーズを設定 (startSnoozeCountdown が無限ループするので advanceTimeBy を使う)
+        vm.snoozeAlarm(5)
+        advanceTimeBy(600)
+
+        assertFalse(vm.uiState.value.isAlarmActive)
+        assertTrue(vm.uiState.value.isSnoozed)
+    }
+
+    @Test
+    fun cancelSnoozeでisSnoozedがfalseになりsnoozeRemainingMsが0になる() = runTest {
+        val fixture = Fixture()
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        fixture.emitPpm(380f)
+        advanceUntilIdle()
+
+        vm.snoozeAlarm(5)
+        advanceTimeBy(600)
+        assertTrue(vm.uiState.value.isSnoozed)
+
+        vm.cancelSnooze()
+        advanceTimeBy(100)
+
+        assertFalse(vm.uiState.value.isSnoozed)
+        assertEquals(0L, vm.uiState.value.snoozeRemainingMs)
+    }
+
+    // ---- GPS ロギング無効テスト ----
+
+    @Test
+    fun GPSロギング無効時はDANGER以上でもログ保存されない() = runTest {
+        val fixture = Fixture()
+        // GPS ロギングを無効にする
+        fixture.vmSettingsRepo.update(
+            fixture.vmSettingsRepo.settings.value.copy(gpsLoggingEnabled = false)
+        )
+        val vm = fixture.createViewModel()
+        advanceUntilIdle()
+
+        // DANGER レベルのセンサー値を流す
+        fixture.emitPpm(250f)
+        advanceUntilIdle()
+
+        // GPS ロギング無効なのでログは保存されない
+        assertEquals(0, fixture.savedReadings.value.size, "GPS ロギング無効時はログ保存されないべき")
+    }
+
     private class Fixture(
         private val logSaveShouldFail: Boolean = false,
         private val reconnectAlwaysFails: Boolean = false,
@@ -489,8 +574,9 @@ class DashboardViewModelTest {
             override fun observeLocation(): Flow<Pair<Double, Double>> = flowOf(35.6812 to 139.7671)
         }
 
-        private val monitorGasUseCase = MonitorGasUseCase(bleRepo)
-        private val alarmUseCase = AlarmUseCase(monitorGasUseCase, alarmController)
+        val vmSettingsRepo = InMemorySettingsRepository()
+        private val monitorGasUseCase = MonitorGasUseCase(bleRepo, vmSettingsRepo)
+        private val alarmUseCase = AlarmUseCase(monitorGasUseCase, alarmController, vmSettingsRepo)
         private val connectDeviceUseCase = ConnectDeviceUseCase(bleRepo)
         private val logMeasurementUseCase = LogMeasurementUseCase(logRepo, gpsRepo)
 
@@ -498,7 +584,7 @@ class DashboardViewModelTest {
             alarmUseCase = alarmUseCase,
             connectDevice = connectDeviceUseCase,
             logMeasurement = logMeasurementUseCase,
-            settingsRepo = InMemorySettingsRepository(),
+            settingsRepo = vmSettingsRepo,
             sessionStatsUseCase = SessionStatsUseCase(),
         )
 

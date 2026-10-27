@@ -1,11 +1,13 @@
 package com.instrument.domain.usecase
 
 import com.instrument.data.alarm.AlarmController
+import com.instrument.data.repository.InMemorySettingsRepository
 import com.instrument.domain.model.GasDevice
 import com.instrument.domain.model.GasLevel
 import com.instrument.domain.model.SensorReading
 import com.instrument.domain.repository.BleConnectionState
 import com.instrument.domain.repository.BleRepository
+import com.instrument.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -26,6 +28,8 @@ class AlarmUseCaseTest {
         override fun now(): Instant = Instant.fromEpochMilliseconds(nowMs)
     }
 
+    private val settingsRepo: SettingsRepository = InMemorySettingsRepository()
+
     private fun fakeMonitor(vararg ppms: Float): MonitorGasUseCase {
         val repo = object : BleRepository {
             override fun scanDevices(): Flow<List<GasDevice>> = flowOf(emptyList())
@@ -34,7 +38,7 @@ class AlarmUseCaseTest {
             override fun observeSensorData(): Flow<SensorReading> = flowOf(*ppms.map { reading(it) }.toTypedArray())
             override suspend fun disconnect() {}
         }
-        return MonitorGasUseCase(repo)
+        return MonitorGasUseCase(repo, settingsRepo)
     }
 
     @Test
@@ -47,7 +51,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(fakeMonitor(30f), controller).observe().toList()
+        AlarmUseCase(fakeMonitor(30f), controller, settingsRepo).observe().toList()
 
         assertTrue(triggeredLevels.isEmpty())
         assertEquals(1, dismissCount)
@@ -62,7 +66,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(fakeMonitor(100f, 120f), controller).observe().toList()
+        AlarmUseCase(fakeMonitor(100f, 120f), controller, settingsRepo).observe().toList()
 
         assertEquals(listOf(GasLevel.WARNING), triggeredLevels)
     }
@@ -76,7 +80,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(fakeMonitor(100f, 250f), controller).observe().toList()
+        AlarmUseCase(fakeMonitor(100f, 250f), controller, settingsRepo).observe().toList()
 
         assertEquals(listOf(GasLevel.WARNING, GasLevel.DANGER), triggeredLevels)
     }
@@ -90,14 +94,13 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(fakeMonitor(380f), controller).observe().toList()
+        AlarmUseCase(fakeMonitor(380f), controller, settingsRepo).observe().toList()
 
         assertEquals(listOf(GasLevel.CRITICAL), triggeredLevels)
     }
 
     @Test
     fun SAFE後に再度WARNINGが来るとtriggerが呼ばれる() = runTest {
-        // SAFE → WARNING の順で来た場合、lastAlarmLevel がリセットされて再発報すべき
         val triggeredLevels = mutableListOf<GasLevel>()
         var dismissCount = 0
         val controller = object : AlarmController {
@@ -106,17 +109,14 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(fakeMonitor(30f, 100f), controller).observe().toList()
+        AlarmUseCase(fakeMonitor(30f, 100f), controller, settingsRepo).observe().toList()
 
-        // SAFE → dismiss が1回、その後の WARNING で trigger が1回
         assertEquals(1, dismissCount)
         assertEquals(listOf(GasLevel.WARNING), triggeredLevels)
     }
 
     @Test
     fun SAFE後に再度同じWARNINGが来ても再発報する() = runTest {
-        // WARNING → SAFE → WARNING の順で来た場合、2回目の WARNING も trigger されるべき
-        // SAFE 時に lastAlarmLevel がリセットされないと2回目が30秒抑制に引っかかる
         val triggeredLevels = mutableListOf<GasLevel>()
         var dismissCount = 0
         val controller = object : AlarmController {
@@ -125,7 +125,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(fakeMonitor(100f, 30f, 100f), controller).observe().toList()
+        AlarmUseCase(fakeMonitor(100f, 30f, 100f), controller, settingsRepo).observe().toList()
 
         assertEquals(1, dismissCount, "SAFE (ppm=30f) で dismiss が1回呼ばれるべき")
         assertEquals(
@@ -137,7 +137,6 @@ class AlarmUseCaseTest {
 
     @Test
     fun SAFE後に同一DANGERレベルが再度来ても再発報する() = runTest {
-        // SAFE でリセット後、同一レベルの再発報が正しく行われることを検証
         val triggeredLevels = mutableListOf<GasLevel>()
         val controller = object : AlarmController {
             override fun trigger(level: GasLevel) { triggeredLevels += level }
@@ -145,8 +144,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        // DANGER → SAFE → DANGER の周期
-        AlarmUseCase(fakeMonitor(250f, 30f, 250f), controller).observe().toList()
+        AlarmUseCase(fakeMonitor(250f, 30f, 250f), controller, settingsRepo).observe().toList()
 
         assertEquals(
             listOf(GasLevel.DANGER, GasLevel.DANGER),
@@ -164,8 +162,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        // WARNING → DANGER → CRITICAL と段階的に上昇
-        AlarmUseCase(fakeMonitor(100f, 250f, 380f), controller).observe().toList()
+        AlarmUseCase(fakeMonitor(100f, 250f, 380f), controller, settingsRepo).observe().toList()
 
         assertEquals(
             listOf(GasLevel.WARNING, GasLevel.DANGER, GasLevel.CRITICAL),
@@ -175,14 +172,13 @@ class AlarmUseCaseTest {
 
     @Test
     fun releaseはAlarmControllerのreleaseに委譲される() = runTest {
-        // AlarmUseCase.release() が AlarmController.release() を呼ぶことを確認
         var releaseCount = 0
         val controller = object : AlarmController {
             override fun trigger(level: GasLevel) {}
             override fun dismiss() {}
             override fun release() { releaseCount++ }
         }
-        val useCase = AlarmUseCase(fakeMonitor(), controller)
+        val useCase = AlarmUseCase(fakeMonitor(), controller, settingsRepo)
 
         useCase.release()
 
@@ -191,17 +187,16 @@ class AlarmUseCaseTest {
 
     @Test
     fun dismiss後にreleaseを呼んでも例外が発生しない() = runTest {
-        // dismiss → release の順で呼んでも安全に動作することを確認
         val controller = object : AlarmController {
             override fun trigger(level: GasLevel) {}
             override fun dismiss() {}
             override fun release() {}
         }
-        val useCase = AlarmUseCase(fakeMonitor(30f), controller)
+        val useCase = AlarmUseCase(fakeMonitor(30f), controller, settingsRepo)
         useCase.observe().toList()
 
         useCase.dismiss()
-        useCase.release() // 例外が発生しないことを確認
+        useCase.release()
     }
 
     // ---- スヌーズのテスト ----
@@ -216,12 +211,10 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        val useCase = AlarmUseCase(fakeMonitor(100f, 110f), controller, clock = fixedClock)
-        // スヌーズを5分設定してから observe する
+        val useCase = AlarmUseCase(fakeMonitor(100f, 110f), controller, settingsRepo, clock = fixedClock)
         useCase.snooze(5 * 60_000L)
         useCase.observe().toList()
 
-        // スヌーズ中のため WARNING は発報されない
         assertTrue(triggeredLevels.isEmpty(), "スヌーズ中の WARNING は抑制されるべき")
     }
 
@@ -235,11 +228,10 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        val useCase = AlarmUseCase(fakeMonitor(380f), controller, clock = fixedClock)
+        val useCase = AlarmUseCase(fakeMonitor(380f), controller, settingsRepo, clock = fixedClock)
         useCase.snooze(5 * 60_000L)
         useCase.observe().toList()
 
-        // CRITICAL はスヌーズを無視して発報される
         assertEquals(listOf(GasLevel.CRITICAL), triggeredLevels, "スヌーズ中でも CRITICAL は発報されるべき")
     }
 
@@ -253,16 +245,13 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        // スヌーズを1分設定
-        val useCase = AlarmUseCase(fakeMonitor(100f), controller, clock = fixedClock)
+        val useCase = AlarmUseCase(fakeMonitor(100f), controller, settingsRepo, clock = fixedClock)
         useCase.snooze(60_000L)
 
-        // クロックをスヌーズ期限後に進める
         fixedClock.nowMs = 61_000L
 
         useCase.observe().toList()
 
-        // スヌーズ期限切れのため WARNING が再発報される
         assertEquals(listOf(GasLevel.WARNING), triggeredLevels, "スヌーズ期限後は再発報されるべき")
     }
 
@@ -276,7 +265,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        val useCase = AlarmUseCase(fakeMonitor(100f), controller, clock = fixedClock)
+        val useCase = AlarmUseCase(fakeMonitor(100f), controller, settingsRepo, clock = fixedClock)
         useCase.snooze(5 * 60_000L)
         useCase.cancelSnooze()
         useCase.observe().toList()
@@ -294,14 +283,10 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        // WARNING → SAFE → WARNING の順。SAFE でスヌーズがクリアされるため2回目も発報すべき
-        val useCase = AlarmUseCase(fakeMonitor(100f, 30f, 100f), controller, clock = fixedClock)
+        val useCase = AlarmUseCase(fakeMonitor(100f, 30f, 100f), controller, settingsRepo, clock = fixedClock)
         useCase.snooze(5 * 60_000L)
         useCase.observe().toList()
 
-        // スヌーズ中: 1回目の WARNING は抑制される
-        // SAFE でスヌーズクリア
-        // 2回目の WARNING は発報される
         assertEquals(
             listOf(GasLevel.WARNING),
             triggeredLevels,
@@ -318,7 +303,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        val useCase = AlarmUseCase(fakeMonitor(), controller, clock = fixedClock)
+        val useCase = AlarmUseCase(fakeMonitor(), controller, settingsRepo, clock = fixedClock)
         assertFalse(useCase.isSnoozed(), "初期状態はスヌーズ未設定のため false")
         useCase.snooze(60_000L)
         assertTrue(useCase.isSnoozed(), "snooze 後は true を返すべき")
@@ -335,7 +320,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        val useCase = AlarmUseCase(fakeMonitor(), controller, clock = fixedClock)
+        val useCase = AlarmUseCase(fakeMonitor(), controller, settingsRepo, clock = fixedClock)
         assertEquals(0L, useCase.snoozeRemainingMs(), "初期状態は 0 を返すべき")
         useCase.snooze(60_000L)
         assertEquals(60_000L, useCase.snoozeRemainingMs(), "スヌーズ設定直後は設定時間を返すべき")
@@ -349,37 +334,28 @@ class AlarmUseCaseTest {
 
     @Test
     fun 同一レベルはSUPPRESS_INTERVAL_MS未満では再発報しない() = runTest {
-        // 固定クロックで2回目を29秒後に設定 → 抑制されるべき
         val fixedClock = FixedClock(0L)
         val triggeredLevels = mutableListOf<GasLevel>()
-        val controller = object : AlarmController {
-            override fun trigger(level: GasLevel) { triggeredLevels += level }
-            override fun dismiss() {}
-            override fun release() {}
-        }
 
-        // 1回目 (t=0) と 2回目 (t=29秒) を同一レベルで送る
         val readings = flowOf(
             SensorReading(100f, 25f, 50f, 0L),
             SensorReading(120f, 25f, 50f, 0L),
         )
-        val repo = object : com.instrument.domain.repository.BleRepository {
+        val repo = object : BleRepository {
             override fun scanDevices(): Flow<List<GasDevice>> = flowOf(emptyList())
             override fun connect(deviceId: String): Flow<BleConnectionState> = flowOf(BleConnectionState.Connected)
             override fun reconnect(deviceId: String): Flow<Boolean> = flowOf(true)
             override fun observeSensorData(): Flow<SensorReading> = readings
             override suspend fun disconnect() {}
         }
-        val monitor = MonitorGasUseCase(repo)
+        val monitor = MonitorGasUseCase(repo, settingsRepo)
 
-        // 1回目 trigger 後、clockを29秒後に設定 → 抑制される
         var callCount = 0
         val controllerWithClockAdv = object : AlarmController {
             override fun trigger(level: GasLevel) {
                 triggeredLevels += level
                 callCount++
                 if (callCount == 1) {
-                    // 1回目発報後に29秒進める（SUPPRESS_INTERVAL_MS - 1ms）
                     fixedClock.nowMs += AlarmUseCase.SUPPRESS_INTERVAL_MS - 1_000L
                 }
             }
@@ -387,7 +363,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(monitor, controllerWithClockAdv, clock = fixedClock).observe().toList()
+        AlarmUseCase(monitor, controllerWithClockAdv, settingsRepo, clock = fixedClock).observe().toList()
 
         assertEquals(
             listOf(GasLevel.WARNING),
@@ -398,7 +374,6 @@ class AlarmUseCaseTest {
 
     @Test
     fun 同一レベルでもSUPPRESS_INTERVAL_MS以上経過すれば再発報する() = runTest {
-        // 固定クロックで2回目を30秒後（境界値）に設定 → 再発報すべき
         val fixedClock = FixedClock(0L)
         val triggeredLevels = mutableListOf<GasLevel>()
 
@@ -406,14 +381,14 @@ class AlarmUseCaseTest {
             SensorReading(100f, 25f, 50f, 0L),
             SensorReading(120f, 25f, 50f, 0L),
         )
-        val repo = object : com.instrument.domain.repository.BleRepository {
+        val repo = object : BleRepository {
             override fun scanDevices(): Flow<List<GasDevice>> = flowOf(emptyList())
             override fun connect(deviceId: String): Flow<BleConnectionState> = flowOf(BleConnectionState.Connected)
             override fun reconnect(deviceId: String): Flow<Boolean> = flowOf(true)
             override fun observeSensorData(): Flow<SensorReading> = readings
             override suspend fun disconnect() {}
         }
-        val monitor = MonitorGasUseCase(repo)
+        val monitor = MonitorGasUseCase(repo, settingsRepo)
 
         var callCount = 0
         val controller = object : AlarmController {
@@ -421,7 +396,6 @@ class AlarmUseCaseTest {
                 triggeredLevels += level
                 callCount++
                 if (callCount == 1) {
-                    // 1回目発報後にちょうど SUPPRESS_INTERVAL_MS 経過させる
                     fixedClock.nowMs += AlarmUseCase.SUPPRESS_INTERVAL_MS
                 }
             }
@@ -429,7 +403,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(monitor, controller, clock = fixedClock).observe().toList()
+        AlarmUseCase(monitor, controller, settingsRepo, clock = fixedClock).observe().toList()
 
         assertEquals(
             listOf(GasLevel.WARNING, GasLevel.WARNING),
@@ -440,22 +414,21 @@ class AlarmUseCaseTest {
 
     @Test
     fun クロック巻き戻し時は抑制されず即座に再発報する() = runTest {
-        // 時刻が巻き戻って elapsed が負値になった場合、アラームを抑制しないことを検証
-        val fixedClock = FixedClock(30_000L) // 30秒後に初期化
+        val fixedClock = FixedClock(30_000L)
         val triggeredLevels = mutableListOf<GasLevel>()
 
         val readings = flowOf(
             SensorReading(100f, 25f, 50f, 0L),
             SensorReading(120f, 25f, 50f, 0L),
         )
-        val repo = object : com.instrument.domain.repository.BleRepository {
+        val repo = object : BleRepository {
             override fun scanDevices(): Flow<List<GasDevice>> = flowOf(emptyList())
             override fun connect(deviceId: String): Flow<BleConnectionState> = flowOf(BleConnectionState.Connected)
             override fun reconnect(deviceId: String): Flow<Boolean> = flowOf(true)
             override fun observeSensorData(): Flow<SensorReading> = readings
             override suspend fun disconnect() {}
         }
-        val monitor = MonitorGasUseCase(repo)
+        val monitor = MonitorGasUseCase(repo, settingsRepo)
 
         var callCount = 0
         val controller = object : AlarmController {
@@ -463,7 +436,6 @@ class AlarmUseCaseTest {
                 triggeredLevels += level
                 callCount++
                 if (callCount == 1) {
-                    // 1回目発報後に時刻を過去に巻き戻す (elapsed が負値になる)
                     fixedClock.nowMs -= 60_000L
                 }
             }
@@ -471,7 +443,7 @@ class AlarmUseCaseTest {
             override fun release() {}
         }
 
-        AlarmUseCase(monitor, controller, clock = fixedClock).observe().toList()
+        AlarmUseCase(monitor, controller, settingsRepo, clock = fixedClock).observe().toList()
 
         assertEquals(
             listOf(GasLevel.WARNING, GasLevel.WARNING),

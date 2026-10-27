@@ -12,8 +12,7 @@ import kotlinx.datetime.Clock
 class AlarmUseCase(
     private val monitor: MonitorGasUseCase,
     private val controller: AlarmController,
-    // テスト・デフォルト用にインメモリ実装をフォールバックとして使用する
-    private val settingsRepo: SettingsRepository = SettingsRepository.default(),
+    private val settingsRepo: SettingsRepository,
     // テスト時に固定クロックを差し込めるよう DI 可能にする
     private val clock: Clock = Clock.System,
 ) {
