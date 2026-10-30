@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.Clock
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -54,7 +55,7 @@ class MockBleSourceTest {
 
     @Test
     fun scanDevicesは3件のデバイスを返す() = runTest {
-        val source = MockBleSource()
+        val source = MockBleSource(Clock.System)
         val results = source.scanDevices().toList()
 
         assertEquals(1, results.size, "scanDevices は1回だけ emit する")
@@ -63,7 +64,7 @@ class MockBleSourceTest {
 
     @Test
     fun scanDevicesのデバイス名にinstrumentが含まれる() = runTest {
-        val source = MockBleSource()
+        val source = MockBleSource(Clock.System)
         val devices = source.scanDevices().toList().first()
 
         assertTrue(
@@ -74,7 +75,7 @@ class MockBleSourceTest {
 
     @Test
     fun scanDevicesの各デバイスIDは一意() = runTest {
-        val source = MockBleSource()
+        val source = MockBleSource(Clock.System)
         val devices = source.scanDevices().toList().first()
 
         assertEquals(
@@ -89,7 +90,7 @@ class MockBleSourceTest {
     @Test
     fun 最初のN件は通常範囲の読み取り値() = runTest {
         // StandardTestDispatcher を注入することで delay() が仮想時間で動作し実時間待ちを回避
-        val source = MockBleSource(dispatcher = StandardTestDispatcher(testScheduler))
+        val source = MockBleSource(clock = Clock.System, dispatcher = StandardTestDispatcher(testScheduler))
         // CRITICAL_INTERVAL-1 件取得 → すべて通常データのはず
         val readings = source.observeSensorData()
             .take(MockBleSource.CRITICAL_INTERVAL - 1)
@@ -106,7 +107,7 @@ class MockBleSourceTest {
     @Test
     fun CRITICAL_INTERVAL回目の読み取りはCRITICAL_PPM() = runTest {
         // StandardTestDispatcher を注入することで delay() が仮想時間で動作し実時間待ちを回避
-        val source = MockBleSource(dispatcher = StandardTestDispatcher(testScheduler))
+        val source = MockBleSource(clock = Clock.System, dispatcher = StandardTestDispatcher(testScheduler))
         // ちょうど CRITICAL_INTERVAL 件目が CRITICAL_PPM になるはず
         val readings = source.observeSensorData()
             .take(MockBleSource.CRITICAL_INTERVAL)
@@ -122,7 +123,7 @@ class MockBleSourceTest {
     @Test
     fun センサー読み取り値のタイムスタンプは0より大きい() = runTest {
         // StandardTestDispatcher を注入することで delay() が仮想時間で動作し実時間待ちを回避
-        val source = MockBleSource(dispatcher = StandardTestDispatcher(testScheduler))
+        val source = MockBleSource(clock = Clock.System, dispatcher = StandardTestDispatcher(testScheduler))
         val readings = source.observeSensorData().take(3).toList()
 
         readings.forEach { r ->

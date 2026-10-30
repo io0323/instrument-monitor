@@ -13,6 +13,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 class MockBleSource(
+    private val clock: Clock,
     // テスト時に StandardTestDispatcher を注入することで delay() を仮想時間で制御できる
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
@@ -23,12 +24,12 @@ class MockBleSource(
         while (true) {
             val reading = if (++criticalCounter >= CRITICAL_INTERVAL) {
                 criticalCounter = 0
-                SensorReading(CRITICAL_PPM, BASE_TEMP.toFloat(), BASE_HUMIDITY.toFloat(), Clock.System.now().toEpochMilliseconds())
+                SensorReading(CRITICAL_PPM, BASE_TEMP.toFloat(), BASE_HUMIDITY.toFloat(), clock.now().toEpochMilliseconds())
             } else {
                 val ppm  = ((sin(t) * PPM_AMPLITUDE + PPM_CENTER).toFloat() + (-PPM_NOISE..PPM_NOISE).random()).coerceAtLeast(0f)
                 val temp = (BASE_TEMP + sin(t * TEMP_FREQ) * TEMP_AMPLITUDE).toFloat()
                 val hum  = (BASE_HUMIDITY + cos(t * HUM_FREQ) * HUM_AMPLITUDE).toFloat()
-                SensorReading(ppm, temp, hum, Clock.System.now().toEpochMilliseconds())
+                SensorReading(ppm, temp, hum, clock.now().toEpochMilliseconds())
             }
             emit(reading)
             t += T_INCREMENT

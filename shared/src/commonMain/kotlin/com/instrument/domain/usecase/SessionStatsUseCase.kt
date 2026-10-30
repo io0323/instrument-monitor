@@ -15,7 +15,7 @@ class SessionStatsUseCase {
      * [readings] が空の場合は null を返す。
      * [settings] が指定された場合はカスタム閾値で peakLevel を算出する。
      */
-    fun compute(readings: List<SensorReading>, settings: AppSettings = AppSettings()): SessionStats? {
+    fun compute(readings: List<SensorReading>, settings: AppSettings): SessionStats? {
         if (readings.isEmpty()) return null
 
         val ppms      = readings.map { it.ppm }

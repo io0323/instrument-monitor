@@ -19,11 +19,12 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.take
+import kotlinx.datetime.Clock
 
 private const val SERVICE_UUID = "0000FFE0-0000-1000-8000-00805F9B34FB"
 private const val CHAR_UUID    = "0000FFE1-0000-1000-8000-00805F9B34FB"
 
-class AndroidBleDataSource(private val context: Context) {
+class AndroidBleDataSource(private val context: Context, private val clock: Clock) {
 
     private var peripheral: Peripheral? = null
 
@@ -96,7 +97,7 @@ class AndroidBleDataSource(private val context: Context) {
 
     fun observeSensorData(): Flow<SensorReading> {
         val p = peripheral ?: return emptyFlow()
-        return p.observe(characteristicOf(SERVICE_UUID, CHAR_UUID)).map { it.toSensorReading() }
+        return p.observe(characteristicOf(SERVICE_UUID, CHAR_UUID)).map { it.toSensorReading(clock) }
     }
 
     suspend fun disconnect() {
