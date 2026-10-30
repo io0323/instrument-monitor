@@ -24,8 +24,8 @@ import org.koin.dsl.module
 
 actual val bleModule: Module = module {
     single<BleRepository> {
-        if (BuildConfig.USE_MOCK) MockBleRepository(MockBleSource())
-        else RealBleRepository(AndroidBleDataSource(androidContext()))
+        if (BuildConfig.USE_MOCK) MockBleRepository(MockBleSource(get()))
+        else RealBleRepository(AndroidBleDataSource(androidContext(), get()))
     }
     // SettingsRepository に依存するため get() で注入する (SettingsRepository より後に解決される)
     single<AlarmController> { AndroidAlarmController(androidContext(), get()) }

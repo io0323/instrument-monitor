@@ -19,7 +19,7 @@ import org.koin.dsl.module
 import platform.Foundation.NSUserDefaults
 
 actual val bleModule: Module = module {
-    single<BleRepository> { MockBleRepository(MockBleSource()) }
+    single<BleRepository> { MockBleRepository(MockBleSource(get())) }
     // 実機接続時: IosRealBleRepository(IosBleDataSource())
 
     single<AlarmController> { IosAlarmController() }
