@@ -15,6 +15,8 @@ import com.instrument.presentation.viewmodel.DeviceListViewModel
 import com.instrument.presentation.viewmodel.HistoryViewModel
 import com.instrument.presentation.viewmodel.SettingsViewModel
 import com.instrument.presentation.viewmodel.StatsViewModel
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
 import org.koin.dsl.module
 
 val domainModule = module {
@@ -37,13 +39,16 @@ val domainModule = module {
     factory { GetLogStatisticsUseCase(get()) }
     // 全計測ログを一括削除する
     factory { ClearAllLogsUseCase(get()) }
+    // Clock / TimeZone をプラットフォーム非依存な形で提供する
+    single<Clock> { Clock.System }
+    single<TimeZone> { TimeZone.currentSystemDefault() }
 }
 
 val viewModelModule = module {
     factory { DashboardViewModel(get(), get(), get(), get(), get()) }
     factory { DeviceListViewModel(get(), get()) }
-    // ExportCsvUseCase・DeleteOldLogsUseCase を Koin から受け取るよう明示的に注入する
-    factory { HistoryViewModel(get(), get(), get()) }
+    // ExportCsvUseCase・DeleteOldLogsUseCase・Clock・TimeZone を Koin から明示的に注入する
+    factory { HistoryViewModel(get(), get(), get(), get(), get()) }
     factory { SettingsViewModel(get(), get()) }
     factory { StatsViewModel(get()) }
 }
